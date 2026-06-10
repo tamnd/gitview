@@ -539,3 +539,48 @@ func contains(s []string, v string) bool {
 	}
 	return false
 }
+
+func TestBlobTooBig(t *testing.T) {
+	g := gittest.New(t)
+	g.WriteBinary("big.bin", backend.MaxBlobBytes+1)
+	g.Commit("Add a file over the display cap")
+	r, err := New(context.Background(), g.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := r.Blob(context.Background(), "main", "big.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !b.TooBig {
+		t.Error("TooBig = false for a file over MaxBlobBytes")
+	}
+	if b.Size != backend.MaxBlobBytes+1 {
+		t.Errorf("Size = %d, want %d", b.Size, backend.MaxBlobBytes+1)
+	}
+	if len(b.Content) != 0 {
+		t.Errorf("Content loaded anyway: %d bytes", len(b.Content))
+	}
+}
+
+func TestResolveBranchTagCollision(t *testing.T) {
+	g := gittest.New(t)
+	g.Write("a.txt", "one\n")
+	tagged := g.Commit("First")
+	g.Tag("dual")
+	g.Write("a.txt", "two\n")
+	branched := g.Commit("Second")
+	g.Branch("dual")
+	g.Checkout("main")
+	r, err := New(context.Background(), g.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.Resolve(context.Background(), "dual")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != branched {
+		t.Errorf("Resolve(dual) = %s, want the branch commit %s (tag is at %s)", got, branched, tagged)
+	}
+}
