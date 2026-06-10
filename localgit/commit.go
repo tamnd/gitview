@@ -110,3 +110,31 @@ func (r *Repo) CommitCount(ctx context.Context, rev string) (int, error) {
 	}
 	return strconv.Atoi(strings.TrimSpace(string(out)))
 }
+
+// AheadBehind reports how many commits rev has that base lacks and the
+// reverse. The server uses it on the branches page; it is not part of the
+// backend contract.
+func (r *Repo) AheadBehind(ctx context.Context, rev, base string) (ahead, behind int, err error) {
+	rev, _, err = checkRevPath(rev, "")
+	if err != nil {
+		return 0, 0, err
+	}
+	base, _, err = checkRevPath(base, "")
+	if err != nil {
+		return 0, 0, err
+	}
+	out, err := r.run(ctx, "rev-list", "--left-right", "--count", base+"..."+rev)
+	if err != nil {
+		return 0, 0, fmt.Errorf("ahead behind %s...%s: %w", base, rev, backend.ErrNotFound)
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) != 2 {
+		return 0, 0, fmt.Errorf("ahead behind: unexpected output %q", out)
+	}
+	behind, err = strconv.Atoi(fields[0])
+	if err != nil {
+		return 0, 0, err
+	}
+	ahead, err = strconv.Atoi(fields[1])
+	return ahead, behind, err
+}
