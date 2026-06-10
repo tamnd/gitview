@@ -10,15 +10,18 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/tamnd/gitview/backend"
@@ -57,7 +60,9 @@ func main() {
 		*token = os.Getenv("GITHUB_TOKEN")
 	}
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	repos, err := openTarget(ctx, target, *token)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gitview:", err)
@@ -82,9 +87,24 @@ func main() {
 		Handler:           srv,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	if err := httpSrv.ListenAndServe(); err != nil {
-		fmt.Fprintln(os.Stderr, "gitview:", err)
-		os.Exit(1)
+	errc := make(chan error, 1)
+	go func() { errc <- httpSrv.ListenAndServe() }()
+
+	select {
+	case err := <-errc:
+		if !errors.Is(err, http.ErrServerClosed) {
+			fmt.Fprintln(os.Stderr, "gitview:", err)
+			os.Exit(1)
+		}
+	case <-ctx.Done():
+		// Restore default signal handling so a second ^C kills us.
+		stop()
+		fmt.Fprintln(os.Stderr, "gitview: shutting down")
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := httpSrv.Shutdown(sctx); err != nil {
+			fmt.Fprintln(os.Stderr, "gitview:", err)
+		}
 	}
 }
 

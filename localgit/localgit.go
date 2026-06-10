@@ -150,6 +150,12 @@ func (r *Repo) Resolve(ctx context.Context, ref string) (string, error) {
 	if err := checkRefName(ref); err != nil {
 		return "", err
 	}
+	if ref == "HEAD" {
+		if out, err := r.run(ctx, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"); err == nil {
+			return strings.TrimSpace(string(out)), nil
+		}
+		return "", fmt.Errorf("ref %q: %w", ref, backend.ErrNotFound)
+	}
 	for _, full := range []string{"refs/heads/" + ref, "refs/tags/" + ref} {
 		if out, err := r.run(ctx, "rev-parse", "--verify", "--quiet", full+"^{commit}"); err == nil {
 			return strings.TrimSpace(string(out)), nil

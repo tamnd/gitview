@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -37,7 +38,11 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request, rs *repoStat
 		return
 	}
 	if len(refs.Branches) == 0 {
-		p := s.repoPage(r, rs, rs.key(), "code", "", "")
+		title := rs.key()
+		if rs.info.Description != "" {
+			title += ": " + rs.info.Description
+		}
+		p := s.repoPage(r, rs, title, "code", "", "")
 		s.render(w, r, http.StatusOK, "empty", map[string]any{"Page": p})
 		return
 	}
@@ -130,8 +135,13 @@ func (s *Server) renderTree(w http.ResponseWriter, r *http.Request, rs *repoStat
 	}
 
 	title := rs.key()
-	if pth != "" {
-		title = pth + " at " + ref + " · " + rs.key()
+	switch {
+	case pth != "":
+		title = rs.info.Name + "/" + pth + " at " + ref + " · " + rs.key()
+	case ref != rs.info.DefaultBranch:
+		title = rs.key() + " at " + ref
+	case rs.info.Description != "":
+		title = rs.key() + ": " + rs.info.Description
 	}
 	p := s.repoPage(r, rs, title, "code", ref, pth)
 	s.render(w, r, http.StatusOK, "tree", map[string]any{
@@ -191,7 +201,7 @@ func (s *Server) handleBlob(w http.ResponseWriter, r *http.Request, rs *repoStat
 	name := path.Base(pth)
 	kind := classifyBlob(name, blob, r.URL.Query().Get("plain") == "1")
 	data := map[string]any{
-		"Page":     s.repoPage(r, rs, pth+" at "+ref+" · "+key, "code", ref, pth),
+		"Page":     s.repoPage(r, rs, rs.info.Name+"/"+pth+" at "+ref+" · "+key, "code", ref, pth),
 		"Crumbs":   crumbs(key, "blob", ref, pth),
 		"Name":     name,
 		"Size":     blob.Size,
@@ -339,6 +349,12 @@ func (s *Server) handleCommit(w http.ResponseWriter, r *http.Request, rs *repoSt
 		s.fail(w, r, err)
 		return
 	}
+	// Abbreviated ids redirect to the full-SHA canonical URL, like
+	// github.com.
+	if rev != sha {
+		http.Redirect(w, r, "/"+rs.key()+"/commit/"+rev, http.StatusMovedPermanently)
+		return
+	}
 	detail, err := rs.repo.Commit(r.Context(), rev)
 	if err != nil {
 		s.fail(w, r, err)
@@ -360,9 +376,8 @@ func (s *Server) handleCommit(w http.ResponseWriter, r *http.Request, rs *repoSt
 		BlobURL   string
 	}
 	files := make([]fileView, 0, len(detail.Files))
-	for i, f := range detail.Files {
+	for _, f := range detail.Files {
 		fv := fileView{
-			Anchor:    fmt.Sprintf("diff-%d", i),
 			OldPath:   f.OldPath,
 			Path:      f.NewPath,
 			Status:    f.Status,
@@ -378,6 +393,8 @@ func (s *Server) handleCommit(w http.ResponseWriter, r *http.Request, rs *repoSt
 		} else {
 			fv.BlobURL = "/" + key + "/blob/" + detail.SHA + "/" + f.NewPath
 		}
+		// The anchor github.com uses: sha256 of the displayed path.
+		fv.Anchor = fmt.Sprintf("diff-%x", sha256.Sum256([]byte(fv.Path)))
 		files = append(files, fv)
 	}
 
@@ -388,7 +405,7 @@ func (s *Server) handleCommit(w http.ResponseWriter, r *http.Request, rs *repoSt
 		})
 	}
 
-	p := s.repoPage(r, rs, detail.Subject+" · "+key, "commits", "", "")
+	p := s.repoPage(r, rs, detail.Subject+" · "+key+"@"+shortSHA(detail.SHA), "commits", "", "")
 	s.render(w, r, http.StatusOK, "commit", map[string]any{
 		"Page":    p,
 		"Commit":  detail.Commit,
@@ -546,7 +563,7 @@ func (s *Server) handleBlame(w http.ResponseWriter, r *http.Request, rs *repoSta
 		views = append(views, v)
 	}
 
-	p := s.repoPage(r, rs, "Blame · "+pth+" · "+key, "code", ref, pth)
+	p := s.repoPage(r, rs, "Blaming "+rs.info.Name+"/"+pth+" at "+ref+" · "+key, "code", ref, pth)
 	s.render(w, r, http.StatusOK, "blame", map[string]any{
 		"Page":    p,
 		"Crumbs":  crumbs(key, "blame", ref, pth),
@@ -568,18 +585,26 @@ func (s *Server) handleFind(w http.ResponseWriter, r *http.Request, rs *repoStat
 	if ref == "" {
 		ref = rs.info.DefaultBranch
 	}
+	// The tree-list endpoint takes a full SHA only, so the index a client
+	// fetches is immutable and cacheable for a year.
+	rev, err := rs.repo.Resolve(r.Context(), ref)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	p := s.repoPage(r, rs, "Find file · "+rs.key(), "code", ref, "")
 	s.render(w, r, http.StatusOK, "find", map[string]any{
 		"Page":        p,
-		"TreeListURL": "/" + rs.key() + "/tree-list/" + ref,
+		"TreeListURL": "/" + rs.key() + "/tree-list/" + rev,
 		"BlobBase":    "/" + rs.key() + "/blob/" + ref + "/",
 	})
 }
 
+var fullShaRe = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 func (s *Server) handleTreeList(w http.ResponseWriter, r *http.Request, rs *repoState) {
-	ref := r.PathValue("rev")
-	rev, err := rs.repo.Resolve(r.Context(), ref)
-	if err != nil {
+	rev := r.PathValue("rev")
+	if !fullShaRe.MatchString(rev) {
 		http.NotFound(w, r)
 		return
 	}
@@ -589,7 +614,8 @@ func (s *Server) handleTreeList(w http.ResponseWriter, r *http.Request, rs *repo
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-cache")
+	// The listing is keyed by a full SHA, so it can never change.
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	_ = json.NewEncoder(w).Encode(map[string]any{"paths": files})
 }
 
@@ -624,6 +650,11 @@ func (s *Server) handleArchive(w http.ResponseWriter, r *http.Request, rs *repoS
 		h.Set("Content-Type", "application/gzip")
 	}
 	h.Set("Content-Disposition", `attachment; filename="`+stem+`.`+format+`"`)
+	if fullShaRe.MatchString(ref) {
+		h.Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		h.Set("Cache-Control", "no-cache")
+	}
 	err = rs.repo.Archive(r.Context(), rev, format, stem+"/", w)
 	if rs.markCap(&rs.archCap, err) {
 		// Headers may already be gone; nothing more to do.

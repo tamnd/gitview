@@ -84,6 +84,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /{$}", s.handleIndex)
 	s.mux.Handle("GET /static/", s.staticHandler())
+	// Browsers ask for /favicon.ico no matter what the page links; without
+	// this route every tab request would land on the styled 404.
+	s.mux.HandleFunc("GET /favicon.ico", s.handleFavicon)
 
 	for key, rs := range s.repos {
 		p := "/" + key
@@ -137,6 +140,17 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	b, err := assets.ReadFile("static/favicon.svg")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(b)
+}
+
 func (s *Server) staticHandler() http.Handler {
 	fs := http.FileServerFS(assets)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -175,6 +189,11 @@ func splitRefPath(refs backend.Refs, rest string) (ref, path string) {
 	rest = strings.Trim(rest, "/")
 	if rest == "" {
 		return "", ""
+	}
+	// A literal HEAD first segment names the current commit, the form
+	// github.com raw URLs accept; it wins before any branch or tag match.
+	if seg, rem, _ := strings.Cut(rest, "/"); seg == "HEAD" {
+		return seg, rem
 	}
 	best := ""
 	isBranch := false
