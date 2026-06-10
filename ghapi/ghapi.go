@@ -616,15 +616,18 @@ func (r *Repo) setHeaders(req *http.Request) {
 	}
 }
 
-// checkStatus maps non-2xx responses to the SPI error model: 404 and 422
-// (bad ref) wrap ErrNotFound; 429, and 403 when the quota is spent, wrap
-// RateLimitError; everything else carries status and a trimmed body.
+// checkStatus maps non-2xx responses to the SPI error model: 404, 422
+// (bad ref) and 409 (empty repository) wrap ErrNotFound; 429, and 403 when
+// the quota is spent, wrap RateLimitError; everything else carries status
+// and a trimmed body.
 func checkStatus(resp *http.Response, u string) error {
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
 	switch {
-	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusUnprocessableEntity:
+	case resp.StatusCode == http.StatusNotFound ||
+		resp.StatusCode == http.StatusUnprocessableEntity ||
+		resp.StatusCode == http.StatusConflict:
 		return fmt.Errorf("github: %s: %w", errPath(u), backend.ErrNotFound)
 	case resp.StatusCode == http.StatusTooManyRequests,
 		resp.StatusCode == http.StatusForbidden &&

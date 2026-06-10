@@ -131,6 +131,17 @@ func TestResolve(t *testing.T) {
 	}
 }
 
+// An empty repository answers 409 on most endpoints; that must read as
+// not-found so the server shows the empty-repo page, not a 500.
+func TestEmptyRepoConflict(t *testing.T) {
+	r, _ := newTestRepo(t, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		http.Error(w, `{"message":"Git Repository is empty."}`, http.StatusConflict)
+	}))
+	if _, err := r.Resolve(context.Background(), "main"); !errors.Is(err, backend.ErrNotFound) {
+		t.Errorf("Resolve on empty repo err = %v, want ErrNotFound", err)
+	}
+}
+
 func TestTree(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/o/r/contents/dir", func(w http.ResponseWriter, req *http.Request) {

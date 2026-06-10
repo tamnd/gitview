@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -199,12 +200,22 @@ func TestBlame(t *testing.T) {
 
 func TestFindAndTreeList(t *testing.T) {
 	s, base := newTestServer(t)
+	rev := resolveRev(t, s, "main")
 	_, body := get(t, s, base+"/find/main")
-	mustContain(t, body, "finder", base+"/tree-list/main")
+	mustContain(t, body, "finder", base+"/tree-list/"+rev)
 
-	res, body := get(t, s, base+"/tree-list/main")
+	// The endpoint takes full SHAs only; ref names 404.
+	res, _ := get(t, s, base+"/tree-list/main")
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("ref name status = %d, want 404", res.StatusCode)
+	}
+
+	res, body = get(t, s, base+"/tree-list/"+rev)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", res.StatusCode)
+	}
+	if cc := res.Header.Get("Cache-Control"); !strings.Contains(cc, "immutable") {
+		t.Errorf("cache-control = %q, want immutable", cc)
 	}
 	var got struct {
 		Paths []string `json:"paths"`
@@ -235,6 +246,9 @@ func TestArchive(t *testing.T) {
 	if cd := res.Header.Get("Content-Disposition"); !strings.Contains(cd, "demo-main.zip") {
 		t.Errorf("content-disposition = %q", cd)
 	}
+	if cc := res.Header.Get("Cache-Control"); cc != "no-cache" {
+		t.Errorf("branch archive cache-control = %q, want no-cache", cc)
+	}
 
 	res, body = get(t, s, base+"/archive/refs/tags/v1.0.0.tar.gz")
 	if res.StatusCode != http.StatusOK {
@@ -246,6 +260,115 @@ func TestArchive(t *testing.T) {
 	if cd := res.Header.Get("Content-Disposition"); !strings.Contains(cd, "demo-1.0.0.tar.gz") {
 		t.Errorf("content-disposition = %q", cd)
 	}
+
+	// Archives addressed by full SHA never change, so they cache forever.
+	rev := resolveRev(t, s, "main")
+	res, _ = get(t, s, base+"/archive/"+rev+".zip")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("sha archive status = %d", res.StatusCode)
+	}
+	if cc := res.Header.Get("Cache-Control"); !strings.Contains(cc, "immutable") {
+		t.Errorf("sha archive cache-control = %q, want immutable", cc)
+	}
+}
+
+// resolveRev resolves a ref through the fixture repository's backend.
+func resolveRev(t *testing.T, s *Server, ref string) string {
+	t.Helper()
+	rev, err := s.repos["octo/demo"].repo.Resolve(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rev
+}
+
+func TestPageTitles(t *testing.T) {
+	s, base := newTestServer(t)
+	cases := []struct{ url, title string }{
+		{base, "<title>octo/demo</title>"},
+		{base + "/tree/feature/x", "<title>octo/demo at feature/x</title>"},
+		{base + "/tree/main/docs", "<title>demo/docs at main · octo/demo</title>"},
+		{base + "/blob/main/main.go", "<title>demo/main.go at main · octo/demo</title>"},
+		{base + "/commits", "<title>Commits · octo/demo</title>"},
+		{base + "/branches", "<title>Branches · octo/demo</title>"},
+		{base + "/tags", "<title>Tags · octo/demo</title>"},
+		{base + "/blame/main/main.go", "<title>Blaming demo/main.go at main · octo/demo</title>"},
+		{base + "/find/main", "<title>Find file · octo/demo</title>"},
+	}
+	for _, c := range cases {
+		_, body := get(t, s, c.url)
+		mustContain(t, body, c.title)
+	}
+	rev := resolveRev(t, s, "main")
+	_, body := get(t, s, base+"/commit/"+rev)
+	mustContain(t, body, "<title>use fmt · octo/demo@"+rev[:7]+"</title>")
+}
+
+func TestFavicon(t *testing.T) {
+	s, base := newTestServer(t)
+	res, body := get(t, s, "/favicon.ico")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Type"); ct != "image/svg+xml" {
+		t.Errorf("content-type = %q", ct)
+	}
+	if !strings.Contains(body, "<svg") {
+		t.Error("favicon is not an svg")
+	}
+	_, page := get(t, s, base)
+	mustContain(t, page, `rel="icon"`, "/static/favicon.svg")
+}
+
+func TestHEADRef(t *testing.T) {
+	s, base := newTestServer(t)
+	res, body := get(t, s, base+"/tree/HEAD")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("tree status = %d", res.StatusCode)
+	}
+	mustContain(t, body, "README.md", "main.go")
+
+	res, body = get(t, s, base+"/raw/HEAD/main.go")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("raw status = %d", res.StatusCode)
+	}
+	mustContain(t, body, "package main")
+}
+
+func TestCommitPrefixRedirect(t *testing.T) {
+	s, base := newTestServer(t)
+	rev := resolveRev(t, s, "main")
+	res, _ := get(t, s, base+"/commit/"+rev[:8])
+	if res.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("status = %d, want 301", res.StatusCode)
+	}
+	if loc := res.Header.Get("Location"); loc != base+"/commit/"+rev {
+		t.Fatalf("location = %q, want %q", loc, base+"/commit/"+rev)
+	}
+}
+
+func TestDiffAnchors(t *testing.T) {
+	s, base := newTestServer(t)
+	rev := resolveRev(t, s, "main")
+	_, body := get(t, s, base+"/commit/"+rev)
+	mustContain(t, body, fmt.Sprintf("diff-%x", sha256.Sum256([]byte("main.go"))))
+}
+
+func TestEmptyRepo(t *testing.T) {
+	g := gittest.New(t)
+	repo, err := localgit.New(context.Background(), g.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(context.Background(), []backend.Repo{repo}, Options{Dev: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, body := get(t, s, "/"+s.order[0])
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+	mustContain(t, body, "This repository is empty.")
 }
 
 func TestNotFound(t *testing.T) {
