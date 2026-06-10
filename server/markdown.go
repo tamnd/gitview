@@ -111,9 +111,7 @@ func (t *linkRewriter) Transform(doc *ast.Document, reader text.Reader, pc parse
 
 func rewriteURL(v mdContext, dest []byte, kind string) []byte {
 	d := string(dest)
-	if d == "" || strings.HasPrefix(d, "#") || strings.Contains(d, "://") ||
-		strings.HasPrefix(d, "mailto:") || strings.HasPrefix(d, "data:") ||
-		strings.HasPrefix(d, "//") {
+	if d == "" || strings.HasPrefix(d, "#") || strings.HasPrefix(d, "//") || hasScheme(d) {
 		return dest
 	}
 	base := v.Dir
@@ -133,6 +131,23 @@ func rewriteURL(v mdContext, dest []byte, kind string) []byte {
 		joined = ""
 	}
 	return []byte(v.RepoPath + "/" + kind + "/" + v.Ref + "/" + joined + frag)
+}
+
+// hasScheme reports whether the destination starts with a URL scheme,
+// "https:" and "mailto:" but also "javascript:". Schemed destinations are
+// never rewritten; the sanitizer decides which schemes survive.
+func hasScheme(d string) bool {
+	for i, c := range d {
+		switch {
+		case c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z':
+		case i > 0 && (c >= '0' && c <= '9' || c == '+' || c == '-' || c == '.'):
+		case c == ':':
+			return i > 0
+		default:
+			return false
+		}
+	}
+	return false
 }
 
 // alertTransformer recognizes GitHub alert blockquotes: a blockquote whose

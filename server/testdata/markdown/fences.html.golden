@@ -1,0 +1,6 @@
+<pre class="chroma"><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">	</span><span class="nb">println</span><span class="p">(</span><span class="s">&#34;hi&#34;</span><span class="p">)</span>
+<span class="p">}</span></code></pre>
+<pre class="chroma"><code>no language here</code></pre>
