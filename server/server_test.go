@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tamnd/gitview/backend"
 	"github.com/tamnd/gitview/gittest"
@@ -262,6 +264,22 @@ func TestNotFound(t *testing.T) {
 			t.Errorf("%s: not the styled error page", p)
 		}
 	}
+}
+
+func TestRateLimitPage(t *testing.T) {
+	s, _ := newTestServer(t)
+	reset := time.Date(2026, 6, 10, 12, 30, 0, 0, time.UTC)
+	err := fmt.Errorf("github: /repos/octo/demo: %w", &backend.RateLimitError{Reset: reset})
+
+	req := httptest.NewRequest("GET", "/octo/demo", nil)
+	rec := httptest.NewRecorder()
+	s.fail(rec, req, err)
+	res := rec.Result()
+	body, _ := io.ReadAll(res.Body)
+	if res.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", res.StatusCode)
+	}
+	mustContain(t, string(body), "rate limit", "12:30 UTC")
 }
 
 func TestStaticAssets(t *testing.T) {

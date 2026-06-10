@@ -178,7 +178,15 @@ func (s *Server) renderError(w http.ResponseWriter, r *http.Request, status int,
 
 // fail maps backend errors onto HTTP responses.
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
+	var rl *backend.RateLimitError
 	switch {
+	case errors.As(err, &rl):
+		msg := "The backend API rate limit is exhausted. Try again shortly, or pass a token."
+		if !rl.Reset.IsZero() {
+			msg = "The backend API rate limit is exhausted. It resets at " +
+				rl.Reset.UTC().Format("15:04 MST") + ". A token raises the limit."
+		}
+		s.renderError(w, r, http.StatusServiceUnavailable, msg)
 	case errors.Is(err, backend.ErrNotFound):
 		s.renderError(w, r, http.StatusNotFound, "This is not the web page you are looking for.")
 	case errors.Is(err, backend.ErrUnsupported):

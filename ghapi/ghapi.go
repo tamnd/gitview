@@ -33,18 +33,9 @@ const maxCacheEntries = 512
 // and 1000 tags; repos beyond that are outside gitview's browsing use case.
 const refPageCap = 10
 
-// RateLimitError reports an exhausted GitHub API budget. The server matches
-// it with errors.As and renders a banner instead of an error page.
-type RateLimitError struct {
-	Reset time.Time // when the quota replenishes; zero if unknown
-}
-
-func (e *RateLimitError) Error() string {
-	if e.Reset.IsZero() {
-		return "github api rate limit exhausted"
-	}
-	return "github api rate limit exhausted, resets at " + e.Reset.UTC().Format(time.RFC3339)
-}
+// RateLimitError is the shared backend type; the alias keeps the natural
+// name available to ghapi callers.
+type RateLimitError = backend.RateLimitError
 
 // Repo is a backend.Repo bound to one owner/repo on one API host.
 type Repo struct {
