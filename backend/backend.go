@@ -112,7 +112,8 @@ type TreeEntry struct {
 	Name string
 	Path string
 	Kind EntryKind
-	Size int64 // bytes for files, -1 when unknown
+	SHA  string // object id; for submodules, the pinned commit
+	Size int64  // bytes for files, -1 when unknown
 	Mode string
 }
 
@@ -123,6 +124,7 @@ type Blob struct {
 	Content []byte
 	Binary  bool
 	LFS     *LFSPointer
+	Symlink bool // Content is the link target path, not file data
 	TooBig  bool
 }
 

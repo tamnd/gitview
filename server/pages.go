@@ -100,6 +100,12 @@ func (s *Server) renderTree(w http.ResponseWriter, r *http.Request, rs *repoStat
 			Icon:  entryIcon(e.Kind),
 			IsDir: e.Kind == backend.KindDir,
 		}
+		if e.Kind == backend.KindSubmodule {
+			// Submodules never link anywhere (doc 08 §5.8): the row is a
+			// badge showing the pinned commit.
+			row.URL = ""
+			row.SubSHA = shortSHA(e.SHA)
+		}
 		if c, ok := last[e.Path]; ok {
 			row.LastMsg = c.Subject
 			row.LastURL = "/" + key + "/commit/" + c.SHA
@@ -228,6 +234,9 @@ func (s *Server) handleBlob(w http.ResponseWriter, r *http.Request, rs *repoStat
 		"Markdown": isMarkdownFile(name),
 	}
 	switch kind {
+	case blobSymlink:
+		data["Kind"] = "symlink"
+		data["Target"] = strings.TrimSpace(string(blob.Content))
 	case blobMarkdown:
 		data["Kind"] = "markdown"
 		data["Rendered"] = renderMarkdown(mdContext{RepoPath: "/" + key, Ref: ref, Dir: path.Dir(strings.TrimSuffix(pth, name))}, blob.Content)

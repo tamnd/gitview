@@ -83,6 +83,17 @@ func (r *Repo) Symlink(target, path string) {
 	}
 }
 
+// Submodule stages a gitlink entry at path pinned to sha, with no network
+// and no nested repository. The directory is created empty so Commit's
+// add -A sees an uninitialized submodule and keeps the staged entry.
+func (r *Repo) Submodule(path, sha string) {
+	r.t.Helper()
+	if err := os.MkdirAll(filepath.Join(r.dir, filepath.FromSlash(path)), 0o755); err != nil {
+		r.t.Fatal(err)
+	}
+	r.Git("update-index", "--add", "--cacheinfo", "160000,"+sha+","+path)
+}
+
 // Remove deletes a file from the worktree.
 func (r *Repo) Remove(path string) {
 	r.t.Helper()

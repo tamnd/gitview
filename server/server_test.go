@@ -96,6 +96,43 @@ func TestHome(t *testing.T) {
 	}
 }
 
+func TestSymlinkAndSubmodulePages(t *testing.T) {
+	g := gittest.New(t)
+	g.Write("README.md", "# Demo\n")
+	g.Symlink("README.md", "link.md")
+	g.Submodule("deps", strings.Repeat("c", 40))
+	g.Commit("first commit")
+	g.SetOrigin("https://github.com/octo/sub.git")
+
+	repo, err := localgit.New(context.Background(), g.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(context.Background(), []backend.Repo{repo}, Options{Dev: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The submodule row is a badge with the pinned short SHA, never a link.
+	_, body := get(t, s, "/octo/sub")
+	mustContain(t, body, "deps", "@ ccccccc")
+	for _, link := range []string{`href="/octo/sub/blob/main/deps"`, `href="/octo/sub/tree/main/deps"`} {
+		if strings.Contains(body, link) {
+			t.Errorf("submodule row links to %s", link)
+		}
+	}
+
+	// The symlink blob page shows the target as plain text.
+	res, body := get(t, s, "/octo/sub/blob/main/link.md")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("symlink blob status = %d", res.StatusCode)
+	}
+	mustContain(t, body, "symbolic link to README.md")
+	if strings.Contains(body, `class="code-table`) {
+		t.Error("symlink blob rendered a code table")
+	}
+}
+
 func TestTreeSubdirAndSlashedBranch(t *testing.T) {
 	s, base := newTestServer(t)
 	_, body := get(t, s, base+"/tree/main/docs")
