@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"html/template"
 	"net/http"
@@ -186,6 +187,11 @@ func (s *Server) renderError(w http.ResponseWriter, r *http.Request, status int,
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	var rl *backend.RateLimitError
 	switch {
+	case errors.Is(err, context.Canceled):
+		// The client went away; there is nobody to render a page for.
+		s.logError(r, err)
+	case errors.Is(err, context.DeadlineExceeded):
+		s.renderError(w, r, http.StatusGatewayTimeout, "The backend took too long to answer.")
 	case errors.As(err, &rl):
 		msg := "The backend API rate limit is exhausted. Try again shortly, or pass a token."
 		if !rl.Reset.IsZero() {
