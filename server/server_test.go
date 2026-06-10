@@ -369,6 +369,35 @@ func TestEmptyRepo(t *testing.T) {
 		t.Fatalf("status = %d", res.StatusCode)
 	}
 	mustContain(t, body, "This repository is empty.")
+	// The Code button keeps the clone path even with nothing to archive.
+	mustContain(t, body, `class="clone-input"`)
+	mustContain(t, body, "Local path")
+	if strings.Contains(body, "Download ZIP") {
+		t.Fatal("empty repo should not offer archive downloads")
+	}
+}
+
+func TestCloneBox(t *testing.T) {
+	s, base := newTestServer(t)
+	_, body := get(t, s, base)
+	mustContain(t, body, `class="clone-input"`)
+	// The fixture has an https origin, so the box is labeled like github.
+	mustContain(t, body, ">HTTPS<")
+	mustContain(t, body, `value="https://github.com/octo/demo.git"`)
+	mustContain(t, body, "data-copy-text=")
+	mustContain(t, body, "Download ZIP")
+}
+
+func TestCloneLabel(t *testing.T) {
+	for _, tc := range []struct{ url, want string }{
+		{"https://github.com/octo/demo.git", "HTTPS"},
+		{"git@github.com:octo/demo.git", "HTTPS"},
+		{"/home/me/src/demo", "Local path"},
+	} {
+		if got := cloneLabel(tc.url); got != tc.want {
+			t.Errorf("cloneLabel(%q) = %q, want %q", tc.url, got, tc.want)
+		}
+	}
 }
 
 func TestNotFound(t *testing.T) {
