@@ -86,14 +86,20 @@
     var line = parseInt(num.getAttribute("data-line-number"), 10);
     if (!line) return;
     var m = lineRe.exec(location.hash);
+    var target;
     if (e.shiftKey && m) {
       var anchor = parseInt(m[1], 10);
       var lo = Math.min(anchor, line);
       var hi = Math.max(anchor, line);
-      location.hash = lo === hi ? "L" + lo : "L" + lo + "-L" + hi;
+      target = lo === hi ? "L" + lo : "L" + lo + "-L" + hi;
     } else {
-      location.hash = "L" + line;
+      target = "L" + line;
     }
+    // pushState instead of assigning location.hash: the URL updates and
+    // history grows, but the page never scroll-jumps to the anchor.
+    applyLineSelection.scrolled = true;
+    history.pushState(null, "", "#" + target);
+    applyLineSelection();
   });
   window.addEventListener("hashchange", applyLineSelection);
   applyLineSelection();
