@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/tamnd/gitview/backend"
+	"github.com/tamnd/gitview/ghapi"
 	"github.com/tamnd/gitview/localgit"
 	"github.com/tamnd/gitview/server"
 )
@@ -32,6 +33,7 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:9419", "listen address")
 	open := flag.Bool("open", false, "open the browser after starting")
 	dev := flag.Bool("dev", false, "show error details in responses")
+	token := flag.String("token", "", "GitHub token for remote targets (defaults to $GITHUB_TOKEN)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Usage = usage
 	flag.Parse()
@@ -51,8 +53,12 @@ func main() {
 		target = flag.Arg(0)
 	}
 
+	if *token == "" {
+		*token = os.Getenv("GITHUB_TOKEN")
+	}
+
 	ctx := context.Background()
-	repos, err := openTarget(ctx, target)
+	repos, err := openTarget(ctx, target, *token)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gitview:", err)
 		os.Exit(1)
@@ -86,19 +92,24 @@ func usage() {
 	fmt.Fprint(os.Stderr, `Usage: gitview [flags] [target]
 
 Targets:
-  (none)          the repository in the current directory
-  PATH            a local repository, bare or not
-  DIR             a directory whose children are repositories
+  (none)              the repository in the current directory
+  PATH                a local repository, bare or not
+  DIR                 a directory whose children are repositories
+  gh:OWNER/REPO       a repository on github.com over the REST API
+  https://github.com/OWNER/REPO  same, by URL
 
 Flags:
 `)
 	flag.PrintDefaults()
 }
 
-// openTarget turns the command line target into backends. A git repository
-// serves alone; any other directory is scanned one level deep for
-// repositories.
-func openTarget(ctx context.Context, target string) ([]backend.Repo, error) {
+// openTarget turns the command line target into backends. Remote GitHub
+// targets get the API backend; a local git repository serves alone; any
+// other directory is scanned one level deep for repositories.
+func openTarget(ctx context.Context, target, token string) ([]backend.Repo, error) {
+	if owner, name, ok := parseRemote(target); ok {
+		return []backend.Repo{ghapi.New(owner, name, token)}, nil
+	}
 	abs, err := filepath.Abs(target)
 	if err != nil {
 		return nil, err
@@ -134,6 +145,29 @@ func openTarget(ctx context.Context, target string) ([]backend.Repo, error) {
 		return nil, fmt.Errorf("no git repositories found under %s", target)
 	}
 	return repos, nil
+}
+
+// parseRemote recognizes gh:owner/repo and github.com URLs.
+func parseRemote(target string) (owner, name string, ok bool) {
+	slug := ""
+	switch {
+	case strings.HasPrefix(target, "gh:"):
+		slug = strings.TrimPrefix(target, "gh:")
+	case strings.HasPrefix(target, "https://github.com/"):
+		slug = strings.TrimPrefix(target, "https://github.com/")
+	case strings.HasPrefix(target, "http://github.com/"):
+		slug = strings.TrimPrefix(target, "http://github.com/")
+	case strings.HasPrefix(target, "github.com/"):
+		slug = strings.TrimPrefix(target, "github.com/")
+	default:
+		return "", "", false
+	}
+	slug = strings.TrimSuffix(strings.Trim(slug, "/"), ".git")
+	owner, name, found := strings.Cut(slug, "/")
+	if !found || owner == "" || name == "" || strings.Contains(name, "/") {
+		return "", "", false
+	}
+	return owner, name, true
 }
 
 func plural(n int, one, many string) string {
