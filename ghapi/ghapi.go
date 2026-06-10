@@ -371,7 +371,7 @@ func (r *Repo) Commit(ctx context.Context, sha string) (backend.CommitDetail, er
 		return backend.CommitDetail{}, fmt.Errorf("commit %s: %w", sha, err)
 	}
 	detail := backend.CommitDetail{
-		Commit: v.apiCommit.toCommit(),
+		Commit: v.toCommit(),
 		Stats: backend.StatTotal{
 			FilesChanged: len(v.Files),
 			Additions:    v.Stats.Additions,
@@ -391,7 +391,7 @@ func (r *Repo) Commit(ctx context.Context, sha string) (backend.CommitDetail, er
 		}
 		if f.Patch != "" {
 			fd.Hunks, fd.TooLarge = parseFilePatch(fd.OldPath, fd.NewPath, f.Patch)
-		} else if f.Changes > 0 || !(fd.Status == backend.Renamed || fd.Status == backend.Copied) {
+		} else if f.Changes > 0 || (fd.Status != backend.Renamed && fd.Status != backend.Copied) {
 			// No patch text means a binary file, unless this is a pure
 			// rename/copy with zero changed lines.
 			fd.Binary = true
@@ -470,7 +470,7 @@ func (r *Repo) Archive(ctx context.Context, rev, format, prefix string, w io.Wri
 	if err != nil {
 		return fmt.Errorf("archive %s: %w", rev, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if err := checkStatus(resp, u); err != nil {
 		return fmt.Errorf("archive %s: %w", rev, err)
 	}
@@ -592,7 +592,7 @@ func (r *Repo) getJSON(ctx context.Context, u string, cacheable bool) (body []by
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotModified && haveCached {
 		// 304 costs zero rate-limit points; serve the cached body.
 		return cached.body, cached.next, nil

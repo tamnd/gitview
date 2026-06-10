@@ -40,7 +40,7 @@ func TestInfo(t *testing.T) {
 		if got := req.Header.Get("X-GitHub-Api-Version"); got != "2022-11-28" {
 			t.Errorf("X-GitHub-Api-Version = %q", got)
 		}
-		fmt.Fprint(w, `{"name":"r","description":"a repo","default_branch":"main",
+		_, _ = fmt.Fprint(w, `{"name":"r","description":"a repo","default_branch":"main",
 			"clone_url":"https://github.com/o/r.git","owner":{"login":"o"}}`)
 	}))
 	info, err := r.Info(context.Background())
@@ -61,16 +61,16 @@ func TestRefsPagination(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/o/r/branches", func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Query().Get("page") == "2" {
-			fmt.Fprint(w, `[{"name":"b3","commit":{"sha":"333"}}]`)
+			_, _ = fmt.Fprint(w, `[{"name":"b3","commit":{"sha":"333"}}]`)
 			return
 		}
 		w.Header().Set("Link",
 			fmt.Sprintf(`<%s/repos/o/r/branches?per_page=100&page=2>; rel="next", <%s/repos/o/r/branches?per_page=100&page=2>; rel="last"`,
 				srv.URL, srv.URL))
-		fmt.Fprint(w, `[{"name":"b1","commit":{"sha":"111"}},{"name":"b2","commit":{"sha":"222"}}]`)
+		_, _ = fmt.Fprint(w, `[{"name":"b1","commit":{"sha":"111"}},{"name":"b2","commit":{"sha":"222"}}]`)
 	})
 	mux.HandleFunc("/repos/o/r/tags", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprint(w, `[{"name":"v2.0","commit":{"sha":"aaa"}},{"name":"v1.0","commit":{"sha":"bbb"}}]`)
+		_, _ = fmt.Fprint(w, `[{"name":"v2.0","commit":{"sha":"aaa"}},{"name":"v1.0","commit":{"sha":"bbb"}}]`)
 	})
 	r, s := newTestRepo(t, mux)
 	srv = s
@@ -102,7 +102,7 @@ func TestResolve(t *testing.T) {
 		calls.Add(1)
 		switch req.URL.Path {
 		case "/repos/o/r/commits/main":
-			fmt.Fprint(w, `{"sha":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}`)
+			_, _ = fmt.Fprint(w, `{"sha":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}`)
 		default:
 			http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
 		}
@@ -137,7 +137,7 @@ func TestTree(t *testing.T) {
 		if got := req.URL.Query().Get("ref"); got != "abc123" {
 			t.Errorf("ref = %q", got)
 		}
-		fmt.Fprint(w, `[
+		_, _ = fmt.Fprint(w, `[
 			{"name":"b.txt","path":"dir/b.txt","size":7,"type":"file"},
 			{"name":"Zoo","path":"dir/Zoo","size":0,"type":"dir"},
 			{"name":"a.txt","path":"dir/a.txt","size":3,"type":"file"},
@@ -146,7 +146,7 @@ func TestTree(t *testing.T) {
 		]`)
 	})
 	mux.HandleFunc("/repos/o/r/contents/file.txt", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprint(w, `{"name":"file.txt","type":"file","size":3}`)
+		_, _ = fmt.Fprint(w, `{"name":"file.txt","type":"file","size":3}`)
 	})
 	r, _ := newTestRepo(t, mux)
 	ctx := context.Background()
@@ -194,24 +194,24 @@ func TestBlob(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/o/r/contents/hello.txt", func(w http.ResponseWriter, req *http.Request) {
 		// Embedded newline mid-base64, as the API serves it.
-		fmt.Fprint(w, `{"type":"file","size":6,"sha":"s1","encoding":"base64","content":"aGVs\nbG8K"}`)
+		_, _ = fmt.Fprint(w, `{"type":"file","size":6,"sha":"s1","encoding":"base64","content":"aGVs\nbG8K"}`)
 	})
 	mux.HandleFunc("/repos/o/r/contents/big.bin", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprint(w, `{"type":"file","size":100,"sha":"s2","encoding":"none","content":""}`)
+		_, _ = fmt.Fprint(w, `{"type":"file","size":100,"sha":"s2","encoding":"none","content":""}`)
 	})
 	mux.HandleFunc("/repos/o/r/git/blobs/s2", func(w http.ResponseWriter, req *http.Request) {
 		blobCalls.Add(1)
-		fmt.Fprintf(w, `{"encoding":"base64","content":"%s","size":100}`, b64(big))
+		_, _ = fmt.Fprintf(w, `{"encoding":"base64","content":"%s","size":100}`, b64(big))
 	})
 	mux.HandleFunc("/repos/o/r/contents/huge.bin", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprintf(w, `{"type":"file","size":%d,"sha":"s3","encoding":"none","content":""}`, backend.MaxBlobBytes+1)
+		_, _ = fmt.Fprintf(w, `{"type":"file","size":%d,"sha":"s3","encoding":"none","content":""}`, backend.MaxBlobBytes+1)
 	})
 	mux.HandleFunc("/repos/o/r/contents/link", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprint(w, `{"type":"symlink","size":7,"target":"../real"}`)
+		_, _ = fmt.Fprint(w, `{"type":"symlink","size":7,"target":"../real"}`)
 	})
 	mux.HandleFunc("/repos/o/r/contents/lfs.bin", func(w http.ResponseWriter, req *http.Request) {
 		ptr := "version https://git-lfs.github.com/spec/v1\noid sha256:abcd\nsize 12345\n"
-		fmt.Fprintf(w, `{"type":"file","size":%d,"sha":"s4","encoding":"base64","content":"%s"}`, len(ptr), b64([]byte(ptr)))
+		_, _ = fmt.Fprintf(w, `{"type":"file","size":%d,"sha":"s4","encoding":"base64","content":"%s"}`, len(ptr), b64([]byte(ptr)))
 	})
 	r, _ := newTestRepo(t, mux)
 	ctx := context.Background()
@@ -292,7 +292,7 @@ func TestCommits(t *testing.T) {
 		for i := range items {
 			items[i] = strings.Replace(commitJSON, `"sha":"c1"`, fmt.Sprintf(`"sha":"c%d"`, i+1), 1)
 		}
-		fmt.Fprint(w, "["+strings.Join(items, ",")+"]")
+		_, _ = fmt.Fprint(w, "["+strings.Join(items, ",")+"]")
 	})
 	r, srv := newTestRepo(t, mux)
 	ctx := context.Background()
@@ -358,7 +358,7 @@ func TestCommit(t *testing.T) {
 	patch := "@@ -1,3 +1,3 @@\n context\n-old line\n+new line\n unchanged"
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/o/r/commits/c1", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprintf(w, `{
+		_, _ = fmt.Fprintf(w, `{
 			%s,
 			"stats":{"additions":10,"deletions":4,"total":14},
 			"files":[
@@ -438,7 +438,7 @@ func TestFiles(t *testing.T) {
 		if got := req.URL.Query().Get("recursive"); got != "1" {
 			t.Errorf("recursive = %q", got)
 		}
-		fmt.Fprint(w, `{"tree":[
+		_, _ = fmt.Fprint(w, `{"tree":[
 			{"path":"z.txt","type":"blob"},
 			{"path":"dir","type":"tree"},
 			{"path":"a/b.txt","type":"blob"}
@@ -457,10 +457,10 @@ func TestFiles(t *testing.T) {
 func TestArchive(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/o/r/zipball/abc123", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprint(w, "ZIPDATA")
+		_, _ = fmt.Fprint(w, "ZIPDATA")
 	})
 	mux.HandleFunc("/repos/o/r/tarball/abc123", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprint(w, "TARDATA")
+		_, _ = fmt.Fprint(w, "TARDATA")
 	})
 	r, _ := newTestRepo(t, mux)
 	ctx := context.Background()
@@ -493,7 +493,7 @@ func TestETagCache(t *testing.T) {
 				t.Errorf("first request carries If-None-Match %q", inm)
 			}
 			w.Header().Set("ETag", `"v1"`)
-			fmt.Fprint(w, `{"name":"r","owner":{"login":"o"},"default_branch":"main","clone_url":"u"}`)
+			_, _ = fmt.Fprint(w, `{"name":"r","owner":{"login":"o"},"default_branch":"main","clone_url":"u"}`)
 			return
 		}
 		if inm := req.Header.Get("If-None-Match"); inm != `"v1"` {
@@ -525,7 +525,7 @@ func TestRateLimitError(t *testing.T) {
 		w.Header().Set("X-Ratelimit-Remaining", "0")
 		w.Header().Set("X-Ratelimit-Reset", fmt.Sprintf("%d", reset.Unix()))
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, `{"message":"API rate limit exceeded"}`)
+		_, _ = fmt.Fprint(w, `{"message":"API rate limit exceeded"}`)
 	}))
 	_, err := r.Info(context.Background())
 	var rl *RateLimitError
