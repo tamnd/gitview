@@ -143,7 +143,7 @@ func (s *Server) staticHandler() http.Handler {
 		if r.URL.Path == "/static/chroma.css" {
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
 			w.Header().Set("Cache-Control", "public, max-age=86400")
-			io.WriteString(w, s.tpl.chromaCSS)
+			_, _ = io.WriteString(w, s.tpl.chromaCSS)
 			return
 		}
 		w.Header().Set("Cache-Control", "public, max-age=86400")

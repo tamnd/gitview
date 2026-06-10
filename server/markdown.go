@@ -201,7 +201,7 @@ func (r *alertRenderer) render(w util.BufWriter, source []byte, n ast.Node, ente
 	}
 	k := string(kind.([]byte))
 	if entering {
-		fmt.Fprintf(w, `<div class="markdown-alert markdown-alert-%s"><p class="markdown-alert-title">%s</p>`+"\n",
+		_, _ = fmt.Fprintf(w, `<div class="markdown-alert markdown-alert-%s"><p class="markdown-alert-title">%s</p>`+"\n",
 			k, strings.ToUpper(k[:1])+k[1:])
 	} else {
 		_, _ = w.WriteString("</div>\n")

@@ -36,7 +36,6 @@ type repoState struct {
 	capMu    sync.Mutex
 	lastCap  capability
 	blameCap capability
-	countCap capability
 	filesCap capability
 	archCap  capability
 }
