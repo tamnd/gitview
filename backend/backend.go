@@ -16,6 +16,20 @@ var (
 	ErrUnsupported = errors.New("unsupported")
 )
 
+// RateLimitError reports an exhausted quota on a metered backend. The
+// server matches it with errors.As; it lives here so the server never has
+// to import a concrete backend.
+type RateLimitError struct {
+	Reset time.Time // when the quota replenishes; zero if unknown
+}
+
+func (e *RateLimitError) Error() string {
+	if e.Reset.IsZero() {
+		return "api rate limit exhausted"
+	}
+	return "api rate limit exhausted, resets at " + e.Reset.UTC().Format(time.RFC3339)
+}
+
 // MaxBlobBytes caps what backends load into memory for display.
 const MaxBlobBytes = 10 << 20
 
