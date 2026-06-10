@@ -1,0 +1,2 @@
+go test fuzz v1
+string("diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n")

@@ -555,3 +555,21 @@ func TestRateLimitError(t *testing.T) {
 func b64(b []byte) string {
 	return base64.StdEncoding.EncodeToString(b)
 }
+
+func TestFilesTruncated(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/o/r/git/trees/abc123", func(w http.ResponseWriter, req *http.Request) {
+		_, _ = fmt.Fprint(w, `{"tree":[
+			{"path":"kept.txt","type":"blob"},
+			{"path":"also.txt","type":"blob"}
+		],"truncated":true}`)
+	})
+	r, _ := newTestRepo(t, mux)
+	files, err := r.Files(context.Background(), "abc123")
+	if err != nil {
+		t.Fatalf("truncated listing must not error: %v", err)
+	}
+	if strings.Join(files, ",") != "also.txt,kept.txt" {
+		t.Errorf("files = %v, want the partial index", files)
+	}
+}

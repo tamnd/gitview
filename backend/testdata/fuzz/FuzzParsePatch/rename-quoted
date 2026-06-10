@@ -1,0 +1,2 @@
+go test fuzz v1
+string("diff --git \"a/p\\303\\244th.txt\" \"b/p\\303\\244th2.txt\"\nsimilarity index 90%\nrename from \"p\\303\\244th.txt\"\nrename to \"p\\303\\244th2.txt\"\nindex 0000000..1111111 100644\n--- \"a/p\\303\\244th.txt\"\n+++ \"b/p\\303\\244th2.txt\"\n@@ -1 +1 @@\n-old\n+new\n")

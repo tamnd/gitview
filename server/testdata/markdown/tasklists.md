@@ -1,0 +1,3 @@
+- [x] shipped
+- [ ] pending
+- plain item

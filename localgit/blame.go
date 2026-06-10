@@ -26,7 +26,12 @@ func (r *Repo) Blame(ctx context.Context, rev, pth string) ([]backend.BlameHunk,
 	if err != nil {
 		return nil, fmt.Errorf("blame %s:%s: %w", rev, pth, backend.ErrNotFound)
 	}
+	return parseBlame(out), nil
+}
 
+// parseBlame consumes the porcelain stream. It is a pure function over the
+// bytes so the fuzz target can drive it without a repository.
+func parseBlame(out []byte) []backend.BlameHunk {
 	commits := make(map[string]*blameCommit)
 	var hunks []backend.BlameHunk
 	var cur *blameCommit
@@ -96,7 +101,7 @@ func (r *Repo) Blame(ctx context.Context, rev, pth string) ([]backend.BlameHunk,
 			hunks[idx].Prev = c.prev
 		}
 	}
-	return hunks, nil
+	return hunks
 }
 
 type blameCommit struct {

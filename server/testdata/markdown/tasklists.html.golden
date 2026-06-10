@@ -1,0 +1,5 @@
+<ul>
+<li><input checked="" disabled="" type="checkbox"> shipped</li>
+<li><input disabled="" type="checkbox"> pending</li>
+<li>plain item</li>
+</ul>

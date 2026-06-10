@@ -762,3 +762,58 @@ func TestDegradation(t *testing.T) {
 		t.Error("download menu shown after ErrUnsupported")
 	}
 }
+
+// TestHostileContent commits XSS payloads as filenames, file content,
+// markdown, and a branch name, then asserts every page serves them inert
+// (doc 14, "Security: XSS").
+func TestHostileContent(t *testing.T) {
+	g := gittest.New(t)
+	g.Write("<img src=x onerror=alert(1)>.md", "# hi\n")
+	g.Write("evil.md", "[c](javascript:alert(1))\n\n<script>alert(2)</script>\n\n<img src=x onerror=alert(3)>\n")
+	g.Write("plain.txt", "<script>alert(4)</script>\n")
+	g.Commit("hostile fixtures")
+	g.Branch("x<y")
+	g.Checkout("main")
+	g.SetOrigin("https://github.com/octo/evil.git")
+	repo, err := localgit.New(context.Background(), g.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(context.Background(), []backend.Repo{repo}, Options{Dev: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The file table escapes the hostile filename and the picker escapes
+	// the hostile branch; neither page carries the raw payload.
+	_, body := get(t, s, "/octo/evil")
+	mustContain(t, body, "&lt;img src=x onerror=alert(1)&gt;.md", "x&lt;y")
+	if strings.Contains(body, "<img src=x") {
+		t.Error("raw filename payload reached the tree page")
+	}
+
+	// Rendered markdown: no script element, no on* handler, no
+	// javascript: href survives the pipeline.
+	_, body = get(t, s, "/octo/evil/blob/main/evil.md")
+	for _, bad := range []string{"<script>alert", "onerror=alert", `href="javascript:`} {
+		if strings.Contains(body, bad) {
+			t.Errorf("markdown page contains %q", bad)
+		}
+	}
+
+	// The code view escapes hostile file content.
+	_, body = get(t, s, "/octo/evil/blob/main/plain.txt")
+	if strings.Contains(body, "<script>alert(4)") {
+		t.Error("raw content payload reached the blob page")
+	}
+	mustContain(t, body, "&lt;script&gt;")
+
+	// The raw endpoint never lets the browser sniff markup into HTML.
+	res, _ := get(t, s, "/octo/evil/raw/main/plain.txt")
+	if ct := res.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
+		t.Errorf("raw Content-Type = %q, want text/plain", ct)
+	}
+	if got := res.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("raw nosniff header = %q", got)
+	}
+}
