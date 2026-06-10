@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	"path"
 	"regexp"
@@ -63,6 +64,12 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request, rs *repoStat
 	ref, rev, pth, err := s.resolveRefPath(r, rs, r.PathValue("rest"))
 	if err != nil {
 		s.fail(w, r, err)
+		return
+	}
+	// /tree/{defaultbranch} with no path is the repo home under another
+	// name; one canonical URL per page (doc 05 §9).
+	if pth == "" && ref == rs.info.DefaultBranch {
+		http.Redirect(w, r, "/"+rs.key(), http.StatusMovedPermanently)
 		return
 	}
 	s.renderTree(w, r, rs, ref, rev, pth)
@@ -155,18 +162,19 @@ func (s *Server) renderTree(w http.ResponseWriter, r *http.Request, rs *repoStat
 	}
 	p := s.repoPage(r, rs, title, "code", ref, pth)
 	s.render(w, r, http.StatusOK, "tree", map[string]any{
-		"Page":        p,
-		"IsRoot":      pth == "",
-		"CloneURL":    rs.info.CloneURL,
-		"CloneLabel":  cloneLabel(rs.info.CloneURL),
-		"Crumbs":      crumbs(key, "tree", ref, pth),
-		"ParentURL":   parentURL(key, ref, pth),
-		"Rows":        rows,
-		"Head":        head,
-		"CommitCount": commitCount,
-		"CommitsURL":  commitsURL(key, ref, pth),
-		"ReadmeName":  readmeName,
-		"Readme":      readme,
+		"Page":          p,
+		"IsRoot":        pth == "",
+		"CloneURL":      rs.info.CloneURL,
+		"CloneLabel":    cloneLabel(rs.info.CloneURL),
+		"ShowDownloads": rs.capState(&rs.archCap) != capNo,
+		"Crumbs":        crumbs(key, "tree", ref, pth),
+		"ParentURL":     parentURL(key, ref, pth),
+		"Rows":          rows,
+		"Head":          head,
+		"CommitCount":   commitCount,
+		"CommitsURL":    commitsURL(key, ref, pth),
+		"ReadmeName":    readmeName,
+		"Readme":        readme,
 	})
 }
 
@@ -232,6 +240,8 @@ func (s *Server) handleBlob(w http.ResponseWriter, r *http.Request, rs *repoStat
 		"PlainURL": "/" + key + "/blob/" + ref + "/" + pth + "?plain=1",
 		"RichURL":  "/" + key + "/blob/" + ref + "/" + pth,
 		"Markdown": isMarkdownFile(name),
+		// Hidden once Blame has returned ErrUnsupported (doc 02 §4).
+		"ShowBlame": rs.capState(&rs.blameCap) != capNo,
 	}
 	switch kind {
 	case blobSymlink:
@@ -621,6 +631,9 @@ func (s *Server) handleFind(w http.ResponseWriter, r *http.Request, rs *repoStat
 		"Page":        p,
 		"TreeListURL": "/" + rs.key() + "/tree-list/" + rev,
 		"BlobBase":    "/" + rs.key() + "/blob/" + ref + "/",
+		// Once Files has returned ErrUnsupported the page says so up
+		// front instead of letting the fetch fail (doc 02 §4).
+		"FilesOK": rs.capState(&rs.filesCap) != capNo,
 	})
 }
 
@@ -679,12 +692,33 @@ func (s *Server) handleArchive(w http.ResponseWriter, r *http.Request, rs *repoS
 	} else {
 		h.Set("Cache-Control", "no-cache")
 	}
-	err = rs.repo.Archive(r.Context(), rev, format, stem+"/", w)
+	cw := &countingWriter{w: w}
+	err = rs.repo.Archive(r.Context(), rev, format, stem+"/", cw)
 	if rs.markCap(&rs.archCap, err) {
-		// Headers may already be gone; nothing more to do.
+		if cw.n == 0 {
+			// Nothing streamed yet, so the response can still become
+			// an honest 404 instead of an empty 200.
+			h.Del("Content-Type")
+			h.Del("Content-Disposition")
+			h.Del("Cache-Control")
+			http.NotFound(w, r)
+		}
 		return
 	}
 	if err != nil {
 		s.logError(r, err)
 	}
+}
+
+// countingWriter tracks whether any archive bytes were streamed, which
+// decides if a late error can still turn into a status code.
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	return n, err
 }

@@ -1,5 +1,5 @@
 {{define "content"}}
-<div class="finder" data-tree-list="{{.TreeListURL}}" data-blob-base="{{.BlobBase}}">
+<div class="finder" {{if .FilesOK}}data-tree-list="{{.TreeListURL}}" {{end}}data-blob-base="{{.BlobBase}}">
   <div class="breadcrumb finder-crumb">
     <a class="breadcrumb-root" href="/{{.Page.Repo.Key}}">{{.Page.Repo.Name}}</a>
     <span class="breadcrumb-sep">/</span>
@@ -7,7 +7,11 @@
   </div>
   <div class="Box finder-results">
     <ul class="finder-list js-finder-list" role="listbox" aria-label="File results">
+      {{- if .FilesOK}}
       <li class="finder-empty text-muted">Loading file list…</li>
+      {{- else}}
+      <li class="finder-empty text-muted">The file finder is not available for this backend.</li>
+      {{- end}}
     </ul>
   </div>
 </div>

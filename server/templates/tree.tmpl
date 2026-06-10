@@ -22,10 +22,14 @@
                 <button class="btn-octicon js-copy" type="button" data-copy-text="{{.CloneURL}}" aria-label="Copy clone URL">{{octicon "copy"}}</button>
               </div>
             </div>
+            {{- if .ShowDownloads}}
             <hr class="SelectMenu-divider">
             {{- end}}
+            {{- end}}
+            {{- if .ShowDownloads}}
             <a class="SelectMenu-item" href="/{{.Page.Repo.Key}}/archive/refs/heads/{{.Page.Repo.Ref}}.zip">{{octicon "download"}} Download ZIP</a>
             <a class="SelectMenu-item" href="/{{.Page.Repo.Key}}/archive/refs/heads/{{.Page.Repo.Ref}}.tar.gz">{{octicon "download"}} Download tar.gz</a>
+            {{- end}}
           </div>
         </div>
       </div>
@@ -64,8 +68,8 @@
     <tr class="file-row">
       <td class="file-icon{{if .IsDir}} file-icon-dir{{end}}">{{octicon .Icon}}</td>
       <td class="file-name">{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}{{.Name}} <span class="text-muted">@ {{.SubSHA}}</span>{{end}}</td>
-      <td class="file-msg">{{if .LastURL}}<a href="{{.LastURL}}">{{.LastMsg}}</a>{{end}}</td>
-      <td class="file-age">{{.LastAt}}</td>
+      <td class="file-msg">{{if .LastURL}}<a href="{{.LastURL}}">{{.LastMsg}}</a>{{else}}<span class="text-muted">&ndash;</span>{{end}}</td>
+      <td class="file-age">{{if .LastAt}}{{.LastAt}}{{else}}<span class="text-muted">&ndash;</span>{{end}}</td>
     </tr>
     {{- end}}
     </tbody>

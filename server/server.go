@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"path"
 	"sort"
 	"strings"
 
@@ -74,7 +75,35 @@ func New(ctx context.Context, repos []backend.Repo, opts Options) (*Server, erro
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// URL normalization runs before the mux so every route benefits
+	// (doc 05 §5): trailing and duplicate slashes 301 to the cleaned
+	// shape, and a decoded ".." segment never reaches a handler.
+	if hasDotDot(r.URL.Path) {
+		s.renderError(w, r, http.StatusNotFound, "This is not the web page you are looking for.")
+		return
+	}
+	if ep := r.URL.EscapedPath(); ep != "/" {
+		// Clean the escaped form so normalization never changes which
+		// bytes a segment decodes to.
+		if clean := path.Clean(ep); clean != ep {
+			if q := r.URL.RawQuery; q != "" {
+				clean += "?" + q
+			}
+			http.Redirect(w, r, clean, http.StatusMovedPermanently)
+			return
+		}
+	}
 	s.mux.ServeHTTP(w, r)
+}
+
+// hasDotDot reports whether any decoded path segment is "..".
+func hasDotDot(p string) bool {
+	for seg := range strings.SplitSeq(p, "/") {
+		if seg == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // routes registers literal per-repository patterns. Owners are known at
@@ -93,9 +122,6 @@ func (s *Server) routes() {
 		h := func(fn func(http.ResponseWriter, *http.Request, *repoState)) http.HandlerFunc {
 			return func(w http.ResponseWriter, r *http.Request) { fn(w, r, rs) }
 		}
-		s.mux.HandleFunc("GET "+p+"/{$}", func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, p, http.StatusMovedPermanently)
-		})
 		s.mux.HandleFunc("GET "+p, h(s.handleHome))
 		s.mux.HandleFunc("GET "+p+"/tree/{rest...}", h(s.handleTree))
 		s.mux.HandleFunc("GET "+p+"/blob/{rest...}", h(s.handleBlob))
@@ -112,8 +138,10 @@ func (s *Server) routes() {
 	}
 
 	// Everything else, including the github.com surfaces gitview
-	// deliberately does not implement, gets the styled 404.
-	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// deliberately does not implement, gets the styled 404. The GET method
+	// keeps the pattern out of the way of other verbs, so the mux itself
+	// answers a POST with its default 405 and Allow header (doc 05 §9).
+	s.mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusNotFound, "This is not the web page you are looking for.")
 	})
 }

@@ -105,7 +105,9 @@
   applyLineSelection();
 
   // ---- File finder ----------------------------------------------------------
-  var finder = doc.querySelector(".finder");
+  // The attribute is absent when the backend cannot list files; the
+  // server-rendered notice stands and there is nothing to fetch.
+  var finder = doc.querySelector(".finder[data-tree-list]");
   if (finder) {
     var input = finder.querySelector(".js-finder-input");
     var list = finder.querySelector(".js-finder-list");

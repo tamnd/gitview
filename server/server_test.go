@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -540,4 +541,224 @@ func TestMultiRepoIndex(t *testing.T) {
 		t.Fatalf("status = %d", res.StatusCode)
 	}
 	mustContain(t, body, "alpha", "beta", "Repositories")
+}
+
+// stubRepo is the one hand-written backend stub doc 14 allows; it exists to
+// reach the degradation and status-table rows no real fixture can produce.
+// Everything else tests against real localgit repositories.
+type stubRepo struct {
+	contentErr error // when set, content methods fail with it
+}
+
+const stubSHA = "0123456789abcdef0123456789abcdef01234567"
+
+func (s *stubRepo) Info(context.Context) (backend.Info, error) {
+	return backend.Info{Owner: "stub", Name: "repo", DefaultBranch: "main",
+		CloneURL: "https://example.com/stub.git"}, nil
+}
+
+func (s *stubRepo) Refs(context.Context) (backend.Refs, error) {
+	return backend.Refs{Branches: []backend.Ref{{Name: "main", SHA: stubSHA}}}, nil
+}
+
+func (s *stubRepo) Resolve(_ context.Context, ref string) (string, error) {
+	return stubSHA, nil
+}
+
+func (s *stubRepo) Tree(_ context.Context, rev, pth string) ([]backend.TreeEntry, error) {
+	if s.contentErr != nil {
+		return nil, s.contentErr
+	}
+	if pth != "" {
+		return nil, backend.ErrNotFound
+	}
+	return []backend.TreeEntry{{Name: "file.txt", Path: "file.txt",
+		Kind: backend.KindFile, SHA: stubSHA, Size: 5, Mode: "100644"}}, nil
+}
+
+func (s *stubRepo) Blob(_ context.Context, rev, pth string) (backend.Blob, error) {
+	if s.contentErr != nil {
+		return backend.Blob{}, s.contentErr
+	}
+	if pth != "file.txt" {
+		return backend.Blob{}, backend.ErrNotFound
+	}
+	return backend.Blob{Path: pth, Size: 5, Content: []byte("hello")}, nil
+}
+
+func (s *stubRepo) Commits(_ context.Context, rev, pth string, n, skip int) ([]backend.Commit, bool, error) {
+	if s.contentErr != nil {
+		return nil, false, s.contentErr
+	}
+	return []backend.Commit{{SHA: stubSHA, Subject: "stub commit"}}, false, nil
+}
+
+func (s *stubRepo) Commit(_ context.Context, sha string) (backend.CommitDetail, error) {
+	if s.contentErr != nil {
+		return backend.CommitDetail{}, s.contentErr
+	}
+	return backend.CommitDetail{Commit: backend.Commit{SHA: stubSHA, Subject: "stub commit"}}, nil
+}
+
+func (s *stubRepo) LastCommit(_ context.Context, rev, pth string) (backend.Commit, error) {
+	return backend.Commit{}, fmt.Errorf("stub: %w", backend.ErrUnsupported)
+}
+
+func (s *stubRepo) Blame(_ context.Context, rev, pth string) ([]backend.BlameHunk, error) {
+	return nil, fmt.Errorf("stub: %w", backend.ErrUnsupported)
+}
+
+func (s *stubRepo) Files(_ context.Context, rev string) ([]string, error) {
+	return nil, fmt.Errorf("stub: %w", backend.ErrUnsupported)
+}
+
+func (s *stubRepo) Archive(_ context.Context, rev, format, prefix string, w io.Writer) error {
+	return fmt.Errorf("stub: %w", backend.ErrUnsupported)
+}
+
+func newStubServer(t *testing.T, stub *stubRepo, dev bool) *Server {
+	t.Helper()
+	s, err := New(context.Background(), []backend.Repo{stub}, Options{Dev: dev})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// TestStatusTable covers the redirect and method rows of the doc 05 §9
+// status policy; the error rows live in TestTimeoutAndErrorPages.
+func TestStatusTable(t *testing.T) {
+	s, base := newTestServer(t)
+
+	redirects := []struct{ from, to string }{
+		{base + "/", base},
+		{base + "/tree/main/docs/", base + "/tree/main/docs"},
+		{base + "//tree//main/docs", base + "/tree/main/docs"},
+		{base + "/tree/main/docs/?plain=1", base + "/tree/main/docs?plain=1"},
+		{base + "/tree/main", base}, // default branch home alias
+	}
+	for _, rd := range redirects {
+		res, _ := get(t, s, rd.from)
+		if res.StatusCode != http.StatusMovedPermanently {
+			t.Errorf("GET %s status = %d, want 301", rd.from, res.StatusCode)
+		}
+		if loc := res.Header.Get("Location"); loc != rd.to {
+			t.Errorf("GET %s location = %q, want %q", rd.from, loc, rd.to)
+		}
+	}
+
+	// A non-default ref at the tree root stays a page of its own.
+	res, _ := get(t, s, base+"/tree/feature/x")
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("non-default tree root status = %d, want 200", res.StatusCode)
+	}
+
+	// A decoded dot-dot segment never reaches a handler.
+	res, _ = get(t, s, base+"/blob/main/../../etc/passwd")
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("dot-dot status = %d, want 404", res.StatusCode)
+	}
+
+	// Method other than GET/HEAD: the mux default 405 with Allow.
+	req := httptest.NewRequest("POST", base, nil)
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST status = %d, want 405", rec.Code)
+	}
+	if allow := rec.Header().Get("Allow"); !strings.Contains(allow, "GET") {
+		t.Errorf("Allow = %q, want GET", allow)
+	}
+
+	// HEAD serves like GET; net/http suppresses the body.
+	req = httptest.NewRequest("HEAD", base, nil)
+	rec = httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("HEAD status = %d, want 200", rec.Code)
+	}
+}
+
+func TestTimeoutAndErrorPages(t *testing.T) {
+	// DeadlineExceeded maps to the styled 504.
+	s := newStubServer(t, &stubRepo{contentErr: fmt.Errorf("tree: %w", context.DeadlineExceeded)}, true)
+	res, body := get(t, s, "/stub/repo")
+	if res.StatusCode != http.StatusGatewayTimeout {
+		t.Errorf("timeout status = %d, want 504", res.StatusCode)
+	}
+	mustContain(t, body, "took too long")
+
+	// Canceled is logged only: nothing is rendered for a vanished client.
+	s = newStubServer(t, &stubRepo{contentErr: fmt.Errorf("tree: %w", context.Canceled)}, true)
+	res, body = get(t, s, "/stub/repo")
+	if res.StatusCode != http.StatusOK || body != "" {
+		t.Errorf("canceled wrote status %d body %q, want nothing", res.StatusCode, body)
+	}
+
+	// Other errors: 500, with the text only under -dev.
+	s = newStubServer(t, &stubRepo{contentErr: errors.New("kaput-sentinel")}, true)
+	res, body = get(t, s, "/stub/repo")
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Errorf("dev 500 status = %d", res.StatusCode)
+	}
+	mustContain(t, body, "kaput-sentinel")
+
+	s = newStubServer(t, &stubRepo{contentErr: errors.New("kaput-sentinel")}, false)
+	res, body = get(t, s, "/stub/repo")
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Errorf("prod 500 status = %d", res.StatusCode)
+	}
+	mustContain(t, body, "Something went wrong.")
+	if strings.Contains(body, "kaput-sentinel") {
+		t.Error("prod 500 leaks the error text")
+	}
+}
+
+// TestDegradation walks the doc 02 §4 table against the stub backend.
+func TestDegradation(t *testing.T) {
+	s := newStubServer(t, &stubRepo{}, true)
+
+	// LastCommit unsupported: the file table renders with placeholder
+	// cells and no commit bar, still a 200.
+	res, body := get(t, s, "/stub/repo")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("home status = %d", res.StatusCode)
+	}
+	mustContain(t, body, "file.txt", "&ndash;")
+	if strings.Contains(body, "commit-subject") {
+		t.Error("latest-commit bar rendered without LastCommit support")
+	}
+
+	// Blame: the page 404s with the explanatory banner...
+	res, body = get(t, s, "/stub/repo/blame/main/file.txt")
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("blame status = %d, want 404", res.StatusCode)
+	}
+	mustContain(t, body, "Blame is not available")
+	// ...and afterwards the blob page hides the Blame button.
+	_, body = get(t, s, "/stub/repo/blob/main/file.txt")
+	if strings.Contains(body, ">Blame<") {
+		t.Error("Blame button shown after ErrUnsupported")
+	}
+
+	// Files: tree-list 404s, then the finder page says so server-side.
+	res, _ = get(t, s, "/stub/repo/tree-list/"+stubSHA)
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("tree-list status = %d, want 404", res.StatusCode)
+	}
+	_, body = get(t, s, "/stub/repo/find/main")
+	mustContain(t, body, "not available for this backend")
+	if strings.Contains(body, "data-tree-list") {
+		t.Error("finder still offers the tree-list fetch")
+	}
+
+	// Archive: the download 404s, then the menu entries disappear.
+	res, _ = get(t, s, "/stub/repo/archive/refs/heads/main.zip")
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("archive status = %d, want 404", res.StatusCode)
+	}
+	_, body = get(t, s, "/stub/repo")
+	if strings.Contains(body, "Download ZIP") {
+		t.Error("download menu shown after ErrUnsupported")
+	}
 }

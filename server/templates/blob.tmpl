@@ -22,7 +22,9 @@
       </div>
       {{- end}}
       <a class="btn btn-sm" href="{{.RawURL}}">Raw</a>
+      {{- if .ShowBlame}}
       <a class="btn btn-sm" href="{{.BlameURL}}" data-hotkey="b">Blame</a>
+      {{- end}}
       <a class="btn btn-sm" href="{{.HistURL}}">History</a>
       <button class="btn btn-sm js-copy" type="button" data-copy-target="blob" aria-label="Copy raw content">{{octicon "copy"}}</button>
     </div>
