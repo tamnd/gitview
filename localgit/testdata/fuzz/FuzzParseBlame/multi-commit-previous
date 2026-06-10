@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("0123456789012345678901234567890123456789 1 1 1\nauthor Ada Lovelace\nauthor-mail <ada@example.com>\nauthor-time 1735830245\nsummary first\nfilename a.txt\n\tline one\nabcdefabcdefabcdefabcdefabcdefabcdefabcd 2 2 1\nauthor Grace Hopper\nauthor-mail <grace@example.com>\nauthor-time 1735830305\nsummary second\nprevious 0123456789012345678901234567890123456789 a.txt\nfilename a.txt\n\tline two\n")
