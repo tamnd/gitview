@@ -132,7 +132,9 @@ func TestRefsAndResolve(t *testing.T) {
 func TestTree(t *testing.T) {
 	g, r := fixture(t)
 	g.Symlink("README.md", "link.md")
-	g.Commit("Add symlink")
+	pinned := strings.Repeat("a", 40)
+	g.Submodule("deps", pinned)
+	g.Commit("Add symlink and submodule")
 	ctx := context.Background()
 	rev, _ := r.Resolve(ctx, "main")
 
@@ -143,20 +145,29 @@ func TestTree(t *testing.T) {
 	var names []string
 	for _, e := range entries {
 		names = append(names, e.Name)
+		if e.SHA == "" {
+			t.Errorf("%s: empty SHA", e.Name)
+		}
 	}
-	// dirs first, then files case-insensitively
-	want := []string{"docs", "link.md", "main.go", "README.md"}
+	// dirs and submodules first, then files case-insensitively
+	want := []string{"deps", "docs", "link.md", "main.go", "README.md"}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Errorf("order: %v want %v", names, want)
 	}
-	if entries[0].Kind != backend.KindDir {
-		t.Errorf("docs kind: %v", entries[0].Kind)
+	if entries[0].Kind != backend.KindSubmodule {
+		t.Errorf("deps kind: %v", entries[0].Kind)
 	}
-	if entries[1].Kind != backend.KindSymlink {
-		t.Errorf("link kind: %v", entries[1].Kind)
+	if entries[0].SHA != pinned {
+		t.Errorf("deps SHA: %s want %s", entries[0].SHA, pinned)
 	}
-	if entries[2].Size <= 0 {
-		t.Errorf("main.go size: %d", entries[2].Size)
+	if entries[1].Kind != backend.KindDir {
+		t.Errorf("docs kind: %v", entries[1].Kind)
+	}
+	if entries[2].Kind != backend.KindSymlink {
+		t.Errorf("link kind: %v", entries[2].Kind)
+	}
+	if entries[3].Size <= 0 {
+		t.Errorf("main.go size: %d", entries[3].Size)
 	}
 
 	sub, err := r.Tree(ctx, rev, "docs")
@@ -209,6 +220,9 @@ func TestBlob(t *testing.T) {
 	if lfs.LFS == nil || lfs.LFS.Size != 123456789 {
 		t.Errorf("lfs pointer: %+v", lfs.LFS)
 	}
+	if b.Symlink || bin.Symlink || lfs.Symlink {
+		t.Error("Symlink set on a regular file")
+	}
 
 	// Directories are not blobs.
 	if _, err := r.Blob(ctx, rev, "docs"); !errors.Is(err, backend.ErrNotFound) {
@@ -216,6 +230,34 @@ func TestBlob(t *testing.T) {
 	}
 	if _, err := r.Blob(ctx, rev, "absent.txt"); !errors.Is(err, backend.ErrNotFound) {
 		t.Errorf("missing blob: %v", err)
+	}
+}
+
+func TestBlobSymlink(t *testing.T) {
+	g, r := fixture(t)
+	g.Symlink("main.go", "link.go")
+	g.Submodule("deps", strings.Repeat("b", 40))
+	g.Commit("Add symlink and submodule")
+	ctx := context.Background()
+	rev, _ := r.Resolve(ctx, "main")
+
+	b, err := r.Blob(ctx, rev, "link.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !b.Symlink {
+		t.Error("Symlink not set")
+	}
+	if string(b.Content) != "main.go" {
+		t.Errorf("target: %q", b.Content)
+	}
+	if b.Size != int64(len("main.go")) {
+		t.Errorf("size: %d", b.Size)
+	}
+
+	// A submodule path is not a blob either.
+	if _, err := r.Blob(ctx, rev, "deps"); !errors.Is(err, backend.ErrNotFound) {
+		t.Errorf("submodule as blob: %v", err)
 	}
 }
 

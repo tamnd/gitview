@@ -193,7 +193,7 @@ func (r *Repo) Tree(ctx context.Context, rev, pth string) ([]backend.TreeEntry, 
 			return nil, fmt.Errorf("unexpected ls-tree record %q", rec)
 		}
 		name := string(rec[tab+1:])
-		e := backend.TreeEntry{Name: name, Path: path.Join(pth, name), Mode: meta[0], Size: -1}
+		e := backend.TreeEntry{Name: name, Path: path.Join(pth, name), SHA: meta[2], Mode: meta[0], Size: -1}
 		switch {
 		case meta[0] == "160000" || meta[1] == "commit":
 			e.Kind = backend.KindSubmodule
@@ -240,22 +240,32 @@ func (r *Repo) Blob(ctx context.Context, rev, pth string) (backend.Blob, error) 
 	if err != nil {
 		return backend.Blob{}, err
 	}
-	spec := treeish(rev, pth)
-	typ, err := r.run(ctx, "cat-file", "-t", spec)
-	if err != nil || strings.TrimSpace(string(typ)) != "blob" {
-		return backend.Blob{}, fmt.Errorf("blob %s:%s: %w", rev, pth, backend.ErrNotFound)
+	if pth == "" {
+		return backend.Blob{}, fmt.Errorf("blob %s: %w", rev, backend.ErrNotFound)
 	}
-	sizeOut, err := r.run(ctx, "cat-file", "-s", spec)
+	// One ls-tree record answers type, size, and mode together; cat-file
+	// alone never reveals the mode, which the symlink page needs. The
+	// literal pathspec magic keeps glob characters in filenames inert.
+	out, err := r.run(ctx, "ls-tree", "-z", "-l", rev, "--", ":(literal)"+pth)
 	if err != nil {
 		return backend.Blob{}, fmt.Errorf("blob %s:%s: %w", rev, pth, backend.ErrNotFound)
 	}
-	size, _ := strconv.ParseInt(strings.TrimSpace(string(sizeOut)), 10, 64)
-	b := backend.Blob{Path: pth, Size: size}
+	rec, _, _ := bytes.Cut(out, []byte{0})
+	tab := bytes.IndexByte(rec, '\t')
+	if tab < 0 {
+		return backend.Blob{}, fmt.Errorf("blob %s:%s: %w", rev, pth, backend.ErrNotFound)
+	}
+	meta := strings.Fields(string(rec[:tab]))
+	if len(meta) != 4 || meta[1] != "blob" {
+		return backend.Blob{}, fmt.Errorf("blob %s:%s: %w", rev, pth, backend.ErrNotFound)
+	}
+	size, _ := strconv.ParseInt(meta[3], 10, 64)
+	b := backend.Blob{Path: pth, Size: size, Symlink: meta[0] == "120000"}
 	if size > backend.MaxBlobBytes {
 		b.TooBig = true
 		return b, nil
 	}
-	content, err := r.run(ctx, "cat-file", "blob", spec)
+	content, err := r.run(ctx, "cat-file", "blob", treeish(rev, pth))
 	if err != nil {
 		return backend.Blob{}, fmt.Errorf("blob %s:%s: %w", rev, pth, backend.ErrNotFound)
 	}

@@ -179,6 +179,7 @@ func (r *Repo) Tree(ctx context.Context, rev, pth string) ([]backend.TreeEntry, 
 	var items []struct {
 		Name string `json:"name"`
 		Path string `json:"path"`
+		SHA  string `json:"sha"`
 		Size int64  `json:"size"`
 		Type string `json:"type"`
 	}
@@ -187,7 +188,7 @@ func (r *Repo) Tree(ctx context.Context, rev, pth string) ([]backend.TreeEntry, 
 	}
 	entries := make([]backend.TreeEntry, 0, len(items))
 	for _, it := range items {
-		e := backend.TreeEntry{Name: it.Name, Path: it.Path, Size: -1}
+		e := backend.TreeEntry{Name: it.Name, Path: it.Path, SHA: it.SHA, Size: -1}
 		// Modes are synthesized: the contents API does not expose them and
 		// the UI only displays kinds (executable bit loss is cosmetic).
 		switch it.Type {
@@ -236,6 +237,7 @@ func (r *Repo) Blob(ctx context.Context, rev, pth string) (backend.Blob, error) 
 		// REST exposes the link target; render it as the blob content,
 		// the same way git stores a symlink.
 		b.Content = []byte(v.Target)
+		b.Symlink = true
 		return b, nil
 	case "file":
 	default: // "dir", "submodule", anything new

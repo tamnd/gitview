@@ -90,9 +90,10 @@ func crumbs(repoKey, kind, ref, pth string) []crumb {
 // treeRow is one line of the file table.
 type treeRow struct {
 	Name    string
-	URL     string
+	URL     string // empty for submodules, which render as a badge, not a link
 	Icon    string
 	IsDir   bool
+	SubSHA  string // short pinned commit, set for submodules only
 	LastMsg string
 	LastURL string
 	LastAt  string // pre-rendered timeago, "" when unknown
@@ -122,6 +123,7 @@ const (
 	blobLFS
 	blobTooBig
 	blobEmpty
+	blobSymlink
 )
 
 var imageExts = map[string]string{
@@ -132,6 +134,10 @@ var imageExts = map[string]string{
 
 func classifyBlob(name string, b backend.Blob, plain bool) blobKind {
 	switch {
+	case b.Symlink:
+		// Backends set this themselves (doc 08 §5.7); the content is the
+		// link target, so none of the other cases can apply.
+		return blobSymlink
 	case b.LFS != nil:
 		return blobLFS
 	case b.TooBig:

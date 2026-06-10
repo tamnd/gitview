@@ -63,7 +63,7 @@
     {{- range .Rows}}
     <tr class="file-row">
       <td class="file-icon{{if .IsDir}} file-icon-dir{{end}}">{{octicon .Icon}}</td>
-      <td class="file-name"><a href="{{.URL}}">{{.Name}}</a></td>
+      <td class="file-name">{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}{{.Name}} <span class="text-muted">@ {{.SubSHA}}</span>{{end}}</td>
       <td class="file-msg">{{if .LastURL}}<a href="{{.LastURL}}">{{.LastMsg}}</a>{{end}}</td>
       <td class="file-age">{{.LastAt}}</td>
     </tr>

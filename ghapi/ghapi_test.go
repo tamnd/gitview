@@ -153,7 +153,7 @@ func TestTree(t *testing.T) {
 			{"name":"Zoo","path":"dir/Zoo","size":0,"type":"dir"},
 			{"name":"a.txt","path":"dir/a.txt","size":3,"type":"file"},
 			{"name":"link","path":"dir/link","size":6,"type":"symlink"},
-			{"name":"sub","path":"dir/sub","size":0,"type":"submodule"}
+			{"name":"sub","path":"dir/sub","sha":"feedfacefeedfacefeedfacefeedfacefeedface","size":0,"type":"submodule"}
 		]`)
 	})
 	mux.HandleFunc("/repos/o/r/contents/file.txt", func(w http.ResponseWriter, req *http.Request) {
@@ -188,7 +188,7 @@ func TestTree(t *testing.T) {
 	if e := byName["link"]; e.Kind != backend.KindSymlink || e.Mode != "120000" {
 		t.Errorf("link = %+v", e)
 	}
-	if e := byName["sub"]; e.Kind != backend.KindSubmodule {
+	if e := byName["sub"]; e.Kind != backend.KindSubmodule || e.SHA != "feedfacefeedfacefeedfacefeedfacefeedface" {
 		t.Errorf("sub = %+v", e)
 	}
 
@@ -260,8 +260,8 @@ func TestBlob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(b.Content) != "../real" {
-		t.Errorf("link content = %q", b.Content)
+	if string(b.Content) != "../real" || !b.Symlink {
+		t.Errorf("link = %+v", b)
 	}
 
 	b, err = r.Blob(ctx, "abc123", "lfs.bin")

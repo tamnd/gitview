@@ -28,7 +28,9 @@
     </div>
   </div>
 
-  {{- if eq .Kind "markdown"}}
+  {{- if eq .Kind "symlink"}}
+  <div class="blob-notice"><p class="text-muted">symbolic link to {{.Target}}</p></div>
+  {{- else if eq .Kind "markdown"}}
   <article class="markdown-body">{{.Rendered}}</article>
   {{- else if eq .Kind "image"}}
   <div class="blob-notice"><img class="blob-image" src="{{.RawURL}}" alt="{{.Name}}"></div>
