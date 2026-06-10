@@ -43,7 +43,11 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request, rs *repoStat
 			title += ": " + rs.info.Description
 		}
 		p := s.repoPage(r, rs, title, "code", "", "")
-		s.render(w, r, http.StatusOK, "empty", map[string]any{"Page": p})
+		s.render(w, r, http.StatusOK, "empty", map[string]any{
+			"Page":       p,
+			"CloneURL":   rs.info.CloneURL,
+			"CloneLabel": cloneLabel(rs.info.CloneURL),
+		})
 		return
 	}
 	ref := rs.info.DefaultBranch
@@ -147,6 +151,8 @@ func (s *Server) renderTree(w http.ResponseWriter, r *http.Request, rs *repoStat
 	s.render(w, r, http.StatusOK, "tree", map[string]any{
 		"Page":        p,
 		"IsRoot":      pth == "",
+		"CloneURL":    rs.info.CloneURL,
+		"CloneLabel":  cloneLabel(rs.info.CloneURL),
 		"Crumbs":      crumbs(key, "tree", ref, pth),
 		"ParentURL":   parentURL(key, ref, pth),
 		"Rows":        rows,
@@ -156,6 +162,15 @@ func (s *Server) renderTree(w http.ResponseWriter, r *http.Request, rs *repoStat
 		"ReadmeName":  readmeName,
 		"Readme":      readme,
 	})
+}
+
+// cloneLabel picks the clone-box caption: a remote URL gets "HTTPS" like
+// github.com, a bare filesystem path gets the honest "Local path".
+func cloneLabel(u string) string {
+	if strings.Contains(u, "://") || strings.HasPrefix(u, "git@") {
+		return "HTTPS"
+	}
+	return "Local path"
 }
 
 func parentURL(key, ref, pth string) string {

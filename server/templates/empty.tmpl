@@ -1,4 +1,27 @@
 {{define "content"}}
+{{- if .CloneURL}}
+<div class="repo-head">
+  <div class="repo-head-actions">
+    <details class="details-reset details-overlay code-menu">
+      <summary class="btn btn-primary">{{octicon "code"}} Code {{octicon "triangle-down"}}</summary>
+      <div class="SelectMenu SelectMenu-right">
+        <div class="SelectMenu-modal">
+          <div class="SelectMenu-list">
+            {{- /* nothing to archive in an empty repo, so no downloads */}}
+            <div class="clone-box">
+              <span class="clone-label">{{.CloneLabel}}</span>
+              <div class="clone-row">
+                <input class="clone-input" type="text" readonly value="{{.CloneURL}}" aria-label="Clone URL">
+                <button class="btn-octicon js-copy" type="button" data-copy-text="{{.CloneURL}}" aria-label="Copy clone URL">{{octicon "copy"}}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+  </div>
+</div>
+{{- end}}
 <div class="blankslate">
   <p>{{octicon "repo"}}</p>
   <p><strong>This repository is empty.</strong></p>

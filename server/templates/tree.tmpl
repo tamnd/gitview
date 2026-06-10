@@ -14,6 +14,16 @@
       <div class="SelectMenu SelectMenu-right">
         <div class="SelectMenu-modal">
           <div class="SelectMenu-list">
+            {{- if .CloneURL}}
+            <div class="clone-box">
+              <span class="clone-label">{{.CloneLabel}}</span>
+              <div class="clone-row">
+                <input class="clone-input" type="text" readonly value="{{.CloneURL}}" aria-label="Clone URL">
+                <button class="btn-octicon js-copy" type="button" data-copy-text="{{.CloneURL}}" aria-label="Copy clone URL">{{octicon "copy"}}</button>
+              </div>
+            </div>
+            <hr class="SelectMenu-divider">
+            {{- end}}
             <a class="SelectMenu-item" href="/{{.Page.Repo.Key}}/archive/refs/heads/{{.Page.Repo.Ref}}.zip">{{octicon "download"}} Download ZIP</a>
             <a class="SelectMenu-item" href="/{{.Page.Repo.Key}}/archive/refs/heads/{{.Page.Repo.Ref}}.tar.gz">{{octicon "download"}} Download tar.gz</a>
           </div>
