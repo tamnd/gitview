@@ -1,0 +1,109 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en" data-color-mode="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Page.Title}}</title>
+<script>{{bootstrap}}</script>
+<link rel="stylesheet" href="/static/primer.css?v={{.Page.Version}}">
+<link rel="stylesheet" href="/static/chroma.css?v={{.Page.Version}}">
+</head>
+<body>
+<header class="AppHeader">
+  <div class="AppHeader-inner">
+    <a class="AppHeader-logo" href="/" aria-label="Home">{{octicon "code"}}</a>
+    {{- if .Page.Repo}}
+    <nav class="AppHeader-context" aria-label="Repository">
+      <a class="AppHeader-context-owner" href="/">{{.Page.Repo.Owner}}</a>
+      <span class="AppHeader-context-sep">/</span>
+      <a class="AppHeader-context-repo" href="/{{.Page.Repo.Key}}">{{.Page.Repo.Name}}</a>
+    </nav>
+    {{- else}}
+    <span class="AppHeader-title">gitview</span>
+    {{- end}}
+    <div class="AppHeader-actions">
+      <button class="btn-octicon js-theme-toggle" type="button" aria-label="Toggle color mode">
+        <span class="theme-icon-light">{{octicon "sun"}}</span>
+        <span class="theme-icon-dark">{{octicon "moon"}}</span>
+      </button>
+    </div>
+  </div>
+  {{- if .Page.Repo}}
+  <nav class="UnderlineNav" aria-label="Repository navigation">
+    <a class="UnderlineNav-item{{if eq .Page.Repo.Nav "code"}} selected{{end}}" href="/{{.Page.Repo.Key}}">{{octicon "code"}} Code</a>
+    <a class="UnderlineNav-item{{if eq .Page.Repo.Nav "commits"}} selected{{end}}" href="/{{.Page.Repo.Key}}/commits">{{octicon "history"}} Commits</a>
+    <a class="UnderlineNav-item{{if eq .Page.Repo.Nav "branches"}} selected{{end}}" href="/{{.Page.Repo.Key}}/branches">{{octicon "git-branch"}} Branches</a>
+    <a class="UnderlineNav-item{{if eq .Page.Repo.Nav "tags"}} selected{{end}}" href="/{{.Page.Repo.Key}}/tags">{{octicon "tag"}} Tags</a>
+  </nav>
+  {{- end}}
+</header>
+<main class="container">
+{{template "content" .}}
+</main>
+<footer class="Footer">
+  <span>gitview {{.Page.Version}}</span>
+</footer>
+<div class="sr-only" id="shortcut-help" hidden>
+  <div class="Box shortcut-dialog">
+    <div class="Box-header"><strong>Keyboard shortcuts</strong></div>
+    <table class="shortcut-table">
+      <tr><td><kbd>t</kbd></td><td>Go to file</td></tr>
+      <tr><td><kbd>y</kbd></td><td>Pin URL to commit SHA</td></tr>
+      <tr><td><kbd>b</kbd></td><td>Open blame</td></tr>
+      <tr><td><kbd>?</kbd></td><td>Show this help</td></tr>
+    </table>
+  </div>
+</div>
+<script src="/static/app.js?v={{.Page.Version}}" defer></script>
+</body>
+</html>
+{{- end}}
+
+{{define "branchpicker"}}
+{{- with $repo := .Page.Repo}}
+<details class="branch-picker details-reset js-branch-picker">
+  <summary class="btn branch-picker-button">
+    {{octicon "git-branch"}}
+    <span class="branch-picker-name">{{if $repo.Ref}}{{$repo.Ref}}{{else}}{{$repo.DefaultBranch}}{{end}}</span>
+    {{octicon "triangle-down"}}
+  </summary>
+  <div class="SelectMenu">
+    <div class="SelectMenu-modal">
+      <header class="SelectMenu-header">
+        <span class="SelectMenu-title">Switch branches/tags</span>
+      </header>
+      <div class="SelectMenu-filter">
+        <input class="SelectMenu-input js-branch-filter" type="text" placeholder="Find a branch or tag" aria-label="Find a branch or tag" autocomplete="off">
+      </div>
+      <div class="SelectMenu-list">
+        {{- range $repo.Branches}}
+        <a class="SelectMenu-item js-pickable" data-name="{{.Name}}" href="/{{$repo.Key}}/tree/{{.Name}}{{if $repo.Path}}/{{$repo.Path}}{{end}}">
+          {{if eq .Name $repo.Ref}}{{octicon "check"}}{{else}}<span class="SelectMenu-gap"></span>{{end}}
+          <span class="SelectMenu-item-text">{{.Name}}</span>
+          {{if eq .Name $repo.DefaultBranch}}<span class="Label">default</span>{{end}}
+        </a>
+        {{- end}}
+        {{- range $repo.Tags}}
+        <a class="SelectMenu-item js-pickable" data-name="{{.Name}}" href="/{{$repo.Key}}/tree/{{.Name}}{{if $repo.Path}}/{{$repo.Path}}{{end}}">
+          {{if eq .Name $repo.Ref}}{{octicon "check"}}{{else}}<span class="SelectMenu-gap"></span>{{end}}
+          <span class="SelectMenu-item-text">{{.Name}}</span>
+          <span class="Label">tag</span>
+        </a>
+        {{- end}}
+      </div>
+    </div>
+  </div>
+</details>
+{{- end}}
+{{end}}
+
+{{define "crumbline"}}
+{{- $repo := .Page.Repo}}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a class="breadcrumb-root" href="/{{$repo.Key}}{{if $repo.Ref}}/tree/{{$repo.Ref}}{{end}}">{{$repo.Name}}</a>
+  {{- range .Crumbs}}
+  <span class="breadcrumb-sep">/</span>
+  {{- if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}<strong class="final-path">{{.Name}}</strong>{{end}}
+  {{- end}}
+</nav>
+{{end}}

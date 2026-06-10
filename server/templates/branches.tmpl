@@ -1,0 +1,31 @@
+{{define "content"}}
+<h1 class="page-title">Branches</h1>
+
+{{- with .Default}}
+<h2 class="section-title">Default branch</h2>
+<div class="Box branch-box">
+  <div class="branch-row">
+    <a class="branch-name" href="{{.URL}}">{{octicon "git-branch"}} {{.Name}}</a>
+    <span class="branch-meta">Updated {{.At}}</span>
+    <span class="Label">default</span>
+  </div>
+</div>
+{{- end}}
+
+{{- if .Rows}}
+<h2 class="section-title">All branches</h2>
+<div class="Box branch-box">
+  {{- range .Rows}}
+  <div class="branch-row">
+    <a class="branch-name" href="{{.URL}}">{{octicon "git-branch"}} {{.Name}}</a>
+    <span class="branch-meta">Updated {{.At}}</span>
+    {{- if .HasCompare}}
+    <span class="branch-a-b" title="{{.Behind}} behind, {{.Ahead}} ahead">
+      <span class="branch-behind">{{.Behind}}</span><span class="branch-ahead">{{.Ahead}}</span>
+    </span>
+    {{- end}}
+  </div>
+  {{- end}}
+</div>
+{{- end}}
+{{end}}

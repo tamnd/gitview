@@ -1,0 +1,66 @@
+{{define "content"}}
+<div class="repo-head">
+  {{template "branchpicker" .}}
+  {{template "crumbline" .}}
+  <div class="repo-head-actions">
+    <a class="btn" href="{{.Page.Repo.FindURL}}" data-hotkey="t">{{octicon "search"}} Go to file</a>
+  </div>
+</div>
+
+<div class="Box blob-box">
+  <div class="Box-header blob-header">
+    <div class="blob-meta">
+      <strong class="blob-name">{{.Name}}</strong>
+      {{- if .LineCount}}<span class="blob-info">{{.LineCount}} lines</span>{{end}}
+      <span class="blob-info">{{bytesize .Size}}</span>
+    </div>
+    <div class="blob-actions">
+      {{- if .Markdown}}
+      <div class="segmented">
+        <a class="segmented-item{{if eq .Kind "markdown"}} selected{{end}}" href="{{.RichURL}}">Preview</a>
+        <a class="segmented-item{{if ne .Kind "markdown"}} selected{{end}}" href="{{.PlainURL}}">Code</a>
+      </div>
+      {{- end}}
+      <a class="btn btn-sm" href="{{.RawURL}}">Raw</a>
+      <a class="btn btn-sm" href="{{.BlameURL}}" data-hotkey="b">Blame</a>
+      <a class="btn btn-sm" href="{{.HistURL}}">History</a>
+      <button class="btn btn-sm js-copy" type="button" data-copy-target="blob" aria-label="Copy raw content">{{octicon "copy"}}</button>
+    </div>
+  </div>
+
+  {{- if eq .Kind "markdown"}}
+  <article class="markdown-body">{{.Rendered}}</article>
+  {{- else if eq .Kind "image"}}
+  <div class="blob-notice"><img class="blob-image" src="{{.RawURL}}" alt="{{.Name}}"></div>
+  {{- else if eq .Kind "lfs"}}
+  <div class="blob-notice">
+    <p>{{octicon "file"}}</p>
+    <p><strong>Stored with Git LFS</strong></p>
+    <p class="text-muted">{{bytesize .Size}} · oid {{.OID}}</p>
+  </div>
+  {{- else if eq .Kind "toobig"}}
+  <div class="blob-notice">
+    <p><strong>Sorry about that, but we can’t show files that are this big right now.</strong></p>
+    <p><a href="{{.RawURL}}">View raw</a></p>
+  </div>
+  {{- else if eq .Kind "binary"}}
+  <div class="blob-notice">
+    <p><strong>This file is binary.</strong></p>
+    <p><a href="{{.RawURL}}">View raw</a></p>
+  </div>
+  {{- else if eq .Kind "empty"}}
+  <div class="blob-notice"><p class="text-muted">This file is empty.</p></div>
+  {{- else}}
+  <table class="code-table js-code" id="blob">
+    <tbody>
+    {{- range .Lines}}
+    <tr class="code-row" id="L{{.Num}}">
+      <td class="code-num" data-line-number="{{.Num}}"></td>
+      <td class="code-cell">{{.HTML}}</td>
+    </tr>
+    {{- end}}
+    </tbody>
+  </table>
+  {{- end}}
+</div>
+{{end}}

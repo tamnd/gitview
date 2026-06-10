@@ -1,0 +1,14 @@
+{{define "content"}}
+<div class="finder" data-tree-list="{{.TreeListURL}}" data-blob-base="{{.BlobBase}}">
+  <div class="breadcrumb finder-crumb">
+    <a class="breadcrumb-root" href="/{{.Page.Repo.Key}}">{{.Page.Repo.Name}}</a>
+    <span class="breadcrumb-sep">/</span>
+    <input class="finder-input js-finder-input" type="text" autofocus autocomplete="off" spellcheck="false" aria-label="Type to filter files" placeholder="Type to filter files…">
+  </div>
+  <div class="Box finder-results">
+    <ul class="finder-list js-finder-list" role="listbox" aria-label="File results">
+      <li class="finder-empty text-muted">Loading file list…</li>
+    </ul>
+  </div>
+</div>
+{{end}}
