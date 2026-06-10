@@ -1,0 +1,4 @@
+/gitview
+dist/
+*.test
+.DS_Store
