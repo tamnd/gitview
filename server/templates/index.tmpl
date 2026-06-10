@@ -1,0 +1,14 @@
+{{define "content"}}
+<h1 class="page-title">Repositories</h1>
+<div class="Box repo-list">
+  {{- range .Repos}}
+  <div class="repo-list-row">
+    <div>
+      <a class="repo-list-name" href="/{{.Key}}">{{octicon "repo"}} {{.Owner}}<span class="repo-list-sep">/</span><strong>{{.Name}}</strong></a>
+      {{- if .Desc}}<p class="repo-list-desc">{{.Desc}}</p>{{end}}
+    </div>
+    <span class="repo-list-branch">{{octicon "git-branch"}} {{.Branch}}</span>
+  </div>
+  {{- end}}
+</div>
+{{end}}

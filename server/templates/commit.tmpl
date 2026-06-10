@@ -1,0 +1,73 @@
+{{define "content"}}
+<div class="Box commit-box">
+  <div class="Box-header commit-box-header">
+    <h1 class="commit-title">{{.Commit.Subject}}</h1>
+    {{- if .Commit.Body}}
+    <pre class="commit-desc">{{.Commit.Body}}</pre>
+    {{- end}}
+    <div class="commit-box-actions">
+      <a class="btn btn-sm" href="{{.TreeURL}}">Browse files</a>
+    </div>
+  </div>
+  <div class="commit-meta">
+    <span class="commit-author"><strong>{{.Commit.Author.Name}}</strong></span>
+    <span class="commit-time">committed {{timeago .Commit.Author.Date}}</span>
+    <span class="commit-meta-right">
+      {{- if .Parents}}
+      <span class="commit-parents">
+        {{len .Parents}} parent{{if gt (len .Parents) 1}}s{{end}}
+        {{- range .Parents}} <a class="commit-sha" href="{{.URL}}">{{.Short}}</a>{{end}}
+      </span>
+      {{- end}}
+      <span class="commit-sha-full">commit <span class="commit-sha">{{.Short}}</span></span>
+      <button class="btn-octicon js-copy" type="button" data-copy-text="{{.Commit.SHA}}" aria-label="Copy full SHA">{{octicon "copy"}}</button>
+    </span>
+  </div>
+</div>
+
+<div class="diff-stat-summary">
+  Showing <strong>{{.Stats.FilesChanged}} changed file{{if ne .Stats.FilesChanged 1}}s{{end}}</strong>
+  with <strong class="color-fg-success">{{.Stats.Additions}} addition{{if ne .Stats.Additions 1}}s{{end}}</strong>
+  and <strong class="color-fg-danger">{{.Stats.Deletions}} deletion{{if ne .Stats.Deletions 1}}s{{end}}</strong>.
+</div>
+
+{{- range .Files}}
+<div class="Box diff-box" id="{{.Anchor}}">
+  <div class="Box-header diff-header">
+    <span class="diff-path">
+      {{- if .Renamed}}{{.OldPath}} → {{.Path}}{{else}}{{.Path}}{{end}}
+      {{- if eq (printf "%s" .Status) "A"}} <span class="Label Label-success">added</span>{{end}}
+      {{- if eq (printf "%s" .Status) "D"}} <span class="Label Label-danger">deleted</span>{{end}}
+    </span>
+    <span class="diff-header-meta">
+      <span class="color-fg-success">+{{.Additions}}</span>
+      <span class="color-fg-danger">-{{.Deletions}}</span>
+      {{- if .BlobURL}}<a class="btn btn-sm" href="{{.BlobURL}}">View file</a>{{end}}
+    </span>
+  </div>
+  {{- if .Binary}}
+  <div class="blob-notice"><p class="text-muted">Binary file not shown.</p></div>
+  {{- else if .TooLarge}}
+  <div class="blob-notice"><p class="text-muted">Large diffs are not rendered by default.</p></div>
+  {{- else}}
+  <table class="diff-table">
+    <tbody>
+    {{- range .Hunks}}
+    <tr class="diff-hunk-row">
+      <td class="diff-num diff-hunk-cell" colspan="2"></td>
+      <td class="diff-hunk-cell diff-hunk-header">{{.Header}}</td>
+    </tr>
+    {{- range .Lines}}
+    <tr class="diff-row{{if eq (printf "%d" .Kind) "1"}} diff-addition{{end}}{{if eq (printf "%d" .Kind) "2"}} diff-deletion{{end}}">
+      <td class="diff-num">{{if .OldNum}}{{.OldNum}}{{end}}</td>
+      <td class="diff-num">{{if .NewNum}}{{.NewNum}}{{end}}</td>
+      <td class="diff-cell"><span class="diff-marker">{{if eq (printf "%d" .Kind) "1"}}+{{else if eq (printf "%d" .Kind) "2"}}-{{end}}</span>{{.Text}}{{if .NoEOF}}<span class="no-eof" title="No newline at end of file"> ⏎</span>{{end}}</td>
+    </tr>
+    {{- end}}
+    {{- end}}
+    </tbody>
+  </table>
+  {{- end}}
+</div>
+{{- end}}
+{{end}}

@@ -1,0 +1,89 @@
+{{define "content"}}
+<div class="repo-head">
+  {{template "branchpicker" .}}
+  {{- if .IsRoot}}
+  <h1 class="repo-title sr-only">{{.Page.Repo.Key}}</h1>
+  {{- else}}
+  {{template "crumbline" .}}
+  {{- end}}
+  <div class="repo-head-actions">
+    <a class="btn" href="{{.Page.Repo.FindURL}}" data-hotkey="t">{{octicon "search"}} Go to file</a>
+    {{- if .IsRoot}}
+    <details class="details-reset details-overlay code-menu">
+      <summary class="btn btn-primary">{{octicon "code"}} Code {{octicon "triangle-down"}}</summary>
+      <div class="SelectMenu SelectMenu-right">
+        <div class="SelectMenu-modal">
+          <div class="SelectMenu-list">
+            <a class="SelectMenu-item" href="/{{.Page.Repo.Key}}/archive/refs/heads/{{.Page.Repo.Ref}}.zip">{{octicon "download"}} Download ZIP</a>
+            <a class="SelectMenu-item" href="/{{.Page.Repo.Key}}/archive/refs/heads/{{.Page.Repo.Ref}}.tar.gz">{{octicon "download"}} Download tar.gz</a>
+          </div>
+        </div>
+      </div>
+    </details>
+    {{- end}}
+  </div>
+</div>
+
+<div class="repo-layout{{if not .IsRoot}} repo-layout-full{{end}}">
+<div class="repo-main">
+<div class="Box file-box">
+  {{- with .Head}}
+  <div class="Box-header file-box-header">
+    <span class="commit-author">{{.Author}}</span>
+    <a class="commit-subject" href="{{.URL}}">{{.Subject}}</a>
+    <span class="file-box-header-meta">
+      <a class="commit-sha" href="{{.URL}}">{{.Short}}</a>
+      <span class="commit-time">{{.At}}</span>
+      {{- if $.CommitCount}}
+      <a class="commit-count" href="{{$.CommitsURL}}">{{octicon "history"}} <strong>{{$.CommitCount}}</strong> Commits</a>
+      {{- end}}
+    </span>
+  </div>
+  {{- end}}
+  <table class="file-table" aria-label="Files">
+    <tbody>
+    {{- if not .IsRoot}}
+    <tr class="file-row">
+      <td class="file-icon"></td>
+      <td class="file-name"><a href="{{.ParentURL}}" rel="nofollow" aria-label="Parent directory">..</a></td>
+      <td class="file-msg"></td>
+      <td class="file-age"></td>
+    </tr>
+    {{- end}}
+    {{- range .Rows}}
+    <tr class="file-row">
+      <td class="file-icon{{if .IsDir}} file-icon-dir{{end}}">{{octicon .Icon}}</td>
+      <td class="file-name"><a href="{{.URL}}">{{.Name}}</a></td>
+      <td class="file-msg">{{if .LastURL}}<a href="{{.LastURL}}">{{.LastMsg}}</a>{{end}}</td>
+      <td class="file-age">{{.LastAt}}</td>
+    </tr>
+    {{- end}}
+    </tbody>
+  </table>
+</div>
+
+{{- if .Readme}}
+<div class="Box readme-box" id="readme">
+  <div class="Box-header readme-header">
+    {{octicon "book"}} <strong>{{.ReadmeName}}</strong>
+  </div>
+  <article class="markdown-body">{{.Readme}}</article>
+</div>
+{{- end}}
+</div>
+
+{{- if .IsRoot}}
+<aside class="repo-sidebar">
+  <h2 class="sidebar-heading">About</h2>
+  {{- if .Page.Repo.Description}}
+  <p class="sidebar-about">{{.Page.Repo.Description}}</p>
+  {{- else}}
+  <p class="sidebar-about text-muted">No description provided.</p>
+  {{- end}}
+  {{- if .Readme}}
+  <p class="sidebar-link">{{octicon "book"}} <a href="#readme">Readme</a></p>
+  {{- end}}
+</aside>
+{{- end}}
+</div>
+{{end}}

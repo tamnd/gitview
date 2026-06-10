@@ -1,0 +1,47 @@
+{{define "content"}}
+<div class="repo-head">
+  {{template "branchpicker" .}}
+</div>
+
+{{- if .Empty}}
+<div class="blankslate">
+  <p><strong>No commits history</strong></p>
+</div>
+{{- end}}
+
+{{- range .Groups}}
+<div class="TimelineItem-group">
+  <h2 class="commits-day">{{octicon "git-commit"}} {{.Day}}</h2>
+  <div class="Box commits-box">
+    {{- range .Rows}}
+    <div class="commits-row">
+      <div class="commits-row-main">
+        <a class="commits-row-subject" href="{{.URL}}">{{.Subject}}</a>
+        {{- if .Body}}
+        <details class="commit-body-toggle details-reset">
+          <summary class="btn-octicon" aria-label="Show description">{{octicon "kebab-horizontal"}}</summary>
+          <pre class="commit-body-text">{{.Body}}</pre>
+        </details>
+        {{- end}}
+        <div class="commits-row-meta">
+          <span class="commit-author">{{.Author}}</span> committed {{.At}}
+        </div>
+      </div>
+      <div class="commits-row-actions">
+        <button class="btn btn-sm js-copy" type="button" data-copy-text="{{.SHA}}" aria-label="Copy full SHA">{{octicon "copy"}}</button>
+        <a class="btn btn-sm commit-sha" href="{{.URL}}">{{.Short}}</a>
+        <a class="btn btn-sm" href="{{.TreeURL}}" aria-label="Browse repository at this point">{{octicon "code"}}</a>
+      </div>
+    </div>
+    {{- end}}
+  </div>
+</div>
+{{- end}}
+
+{{- if or .Prev .Next}}
+<nav class="paginate-container" aria-label="Pagination">
+  {{if .Prev}}<a class="btn" href="{{.Prev}}" rel="prev">Newer</a>{{else}}<span class="btn" aria-disabled="true">Newer</span>{{end}}
+  {{if .Next}}<a class="btn" href="{{.Next}}" rel="next">Older</a>{{else}}<span class="btn" aria-disabled="true">Older</span>{{end}}
+</nav>
+{{- end}}
+{{end}}

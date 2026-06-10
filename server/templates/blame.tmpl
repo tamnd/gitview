@@ -1,0 +1,45 @@
+{{define "content"}}
+<div class="repo-head">
+  {{template "branchpicker" .}}
+  {{template "crumbline" .}}
+</div>
+
+<div class="Box blob-box">
+  <div class="Box-header blob-header">
+    <div class="blob-meta">
+      <strong class="blob-name">{{.Name}}</strong>
+      <span class="blob-info">Blame</span>
+    </div>
+    <div class="blob-actions">
+      <a class="btn btn-sm" href="{{.RawURL}}">Raw</a>
+      <a class="btn btn-sm" href="{{.BlobURL}}">Normal view</a>
+    </div>
+  </div>
+  <table class="blame-table">
+    <tbody>
+    {{- range .Hunks}}
+    {{- $hunk := .}}
+    {{- range $i, $line := .Lines}}
+    <tr class="blame-row{{if $i}} blame-row-cont{{end}}">
+      {{- if not $i}}
+      <td class="blame-commit" rowspan="{{len $hunk.Lines}}">
+        <div class="blame-commit-inner" data-heat="{{$hunk.Heat}}">
+          <div class="blame-commit-info">
+            <a class="blame-subject" href="{{$hunk.URL}}" title="{{$hunk.Subject}}">{{$hunk.Subject}}</a>
+            <div class="blame-meta">{{$hunk.Author}} · {{$hunk.At}}</div>
+          </div>
+          {{- if $hunk.ReblameURL}}
+          <a class="blame-reblame btn-octicon" href="{{$hunk.ReblameURL}}" title="View blame prior to this change">{{octicon "history"}}</a>
+          {{- end}}
+        </div>
+      </td>
+      {{- end}}
+      <td class="code-num" data-line-number="{{$line.Num}}"></td>
+      <td class="code-cell">{{$line.HTML}}</td>
+    </tr>
+    {{- end}}
+    {{- end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

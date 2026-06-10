@@ -1,0 +1,28 @@
+{{define "content"}}
+<h1 class="page-title">Tags</h1>
+
+{{- if .Rows}}
+<div class="Box tag-box">
+  {{- range .Rows}}
+  <div class="tag-row">
+    <div class="tag-main">
+      <a class="tag-name" href="{{.URL}}">{{octicon "tag"}} {{.Name}}</a>
+      <div class="tag-meta">
+        <span>{{.At}}</span>
+        <a class="commit-sha" href="{{.URL}}">{{.Short}}</a>
+      </div>
+    </div>
+    <div class="tag-actions">
+      <a class="btn btn-sm" href="{{.Zip}}">{{octicon "download"}} zip</a>
+      <a class="btn btn-sm" href="{{.Tgz}}">{{octicon "download"}} tar.gz</a>
+    </div>
+  </div>
+  {{- end}}
+</div>
+{{- else}}
+<div class="blankslate">
+  <p>{{octicon "tag"}}</p>
+  <p><strong>There aren’t any releases here</strong></p>
+</div>
+{{- end}}
+{{end}}
