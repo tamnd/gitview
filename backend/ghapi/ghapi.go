@@ -171,7 +171,7 @@ func (r *Repo) Tree(ctx context.Context, rev, pth string) ([]backend.TreeEntry, 
 		return nil, fmt.Errorf("tree %s:%s: %w", rev, pth, err)
 	}
 	// A JSON object instead of an array means path is a file; the route
-	// logic retries as Blob on ErrNotFound, mirroring localgit.
+	// logic retries as Blob on ErrNotFound, mirroring the local backend.
 	trimmed := bytes.TrimLeft(body, " \t\r\n")
 	if len(trimmed) == 0 || trimmed[0] != '[' {
 		return nil, fmt.Errorf("tree %s:%s: not a directory: %w", rev, pth, backend.ErrNotFound)
@@ -719,7 +719,7 @@ func decodeBase64(s string) ([]byte, error) {
 }
 
 // checkRefName rejects revision-walk syntax and flag-shaped input before
-// it ever becomes a URL path segment. Copied from localgit so both
+// it ever becomes a URL path segment. Copied from the local backend so both
 // backends accept the same ref grammar.
 func checkRefName(ref string) error {
 	if ref == "" || strings.HasPrefix(ref, "-") || strings.ContainsAny(ref, "~^:?*[\\ \t\n@{") {
@@ -730,7 +730,7 @@ func checkRefName(ref string) error {
 
 // sortEntries orders dirs and submodules first, then files and symlinks,
 // case-insensitive within each group, the way github.com lists them.
-// Copied from localgit so every backend agrees.
+// Copied from the local backend so every backend agrees.
 func sortEntries(entries []backend.TreeEntry) {
 	group := func(k backend.EntryKind) int {
 		if k == backend.KindDir || k == backend.KindSubmodule {

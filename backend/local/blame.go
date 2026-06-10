@@ -1,4 +1,4 @@
-package localgit
+package local
 
 import (
 	"context"

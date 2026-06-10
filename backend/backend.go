@@ -1,6 +1,6 @@
 // Package backend defines the read-only repository contract that the
 // gitview server is written against. Implementations exist for local git
-// directories (localgit) and the GitHub REST API (ghapi).
+// directories (backend/local) and the GitHub REST API (backend/ghapi).
 package backend
 
 import (

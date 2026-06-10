@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/tamnd/gitview/backend"
-	"github.com/tamnd/gitview/ghapi"
-	"github.com/tamnd/gitview/localgit"
+	"github.com/tamnd/gitview/backend/ghapi"
+	"github.com/tamnd/gitview/backend/local"
 	"github.com/tamnd/gitview/server"
 )
 
@@ -134,7 +134,7 @@ func openTarget(ctx context.Context, target, token string) ([]backend.Repo, erro
 	if err != nil {
 		return nil, err
 	}
-	if repo, err := localgit.New(ctx, abs); err == nil {
+	if repo, err := local.New(ctx, abs); err == nil {
 		return []backend.Repo{repo}, nil
 	}
 	st, err := os.Stat(abs)
@@ -157,7 +157,7 @@ func openTarget(ctx context.Context, target, token string) ([]backend.Repo, erro
 	sort.Strings(names)
 	var repos []backend.Repo
 	for _, name := range names {
-		if repo, err := localgit.New(ctx, filepath.Join(abs, name)); err == nil {
+		if repo, err := local.New(ctx, filepath.Join(abs, name)); err == nil {
 			repos = append(repos, repo)
 		}
 	}

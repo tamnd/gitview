@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/tamnd/gitview/backend"
+	"github.com/tamnd/gitview/backend/local"
 	"github.com/tamnd/gitview/gittest"
-	"github.com/tamnd/gitview/localgit"
 )
 
 // newTestServer builds a server over one deterministic fixture repository.
@@ -36,7 +36,7 @@ func newTestServer(t *testing.T) (*Server, string) {
 	g.Tag("v1.0.0")
 	g.SetOrigin("https://github.com/octo/demo.git")
 
-	repo, err := localgit.New(context.Background(), g.Path())
+	repo, err := local.New(context.Background(), g.Path())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestSymlinkAndSubmodulePages(t *testing.T) {
 	g.Commit("first commit")
 	g.SetOrigin("https://github.com/octo/sub.git")
 
-	repo, err := localgit.New(context.Background(), g.Path())
+	repo, err := local.New(context.Background(), g.Path())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +394,7 @@ func TestDiffAnchors(t *testing.T) {
 
 func TestEmptyRepo(t *testing.T) {
 	g := gittest.New(t)
-	repo, err := localgit.New(context.Background(), g.Path())
+	repo, err := local.New(context.Background(), g.Path())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,11 +524,11 @@ func TestMultiRepoIndex(t *testing.T) {
 	g2.Commit("b")
 	g2.SetOrigin("https://github.com/octo/beta.git")
 
-	r1, err := localgit.New(context.Background(), g1.Path())
+	r1, err := local.New(context.Background(), g1.Path())
 	if err != nil {
 		t.Fatal(err)
 	}
-	r2, err := localgit.New(context.Background(), g2.Path())
+	r2, err := local.New(context.Background(), g2.Path())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +545,7 @@ func TestMultiRepoIndex(t *testing.T) {
 
 // stubRepo is the one hand-written backend stub doc 14 allows; it exists to
 // reach the degradation and status-table rows no real fixture can produce.
-// Everything else tests against real localgit repositories.
+// Everything else tests against real local-backend repositories.
 type stubRepo struct {
 	contentErr error // when set, content methods fail with it
 }
@@ -775,7 +775,7 @@ func TestHostileContent(t *testing.T) {
 	g.Branch("x<y")
 	g.Checkout("main")
 	g.SetOrigin("https://github.com/octo/evil.git")
-	repo, err := localgit.New(context.Background(), g.Path())
+	repo, err := local.New(context.Background(), g.Path())
 	if err != nil {
 		t.Fatal(err)
 	}

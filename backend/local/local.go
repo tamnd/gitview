@@ -1,8 +1,8 @@
-// Package localgit implements backend.Repo for a repository on disk by
+// Package local implements backend.Repo for a repository on disk by
 // driving the git command line. Every call is one or two short-lived git
 // child processes; git itself is safe for concurrent readers, so the type
 // holds no locks beyond a small cache for recursive file listings.
-package localgit
+package local
 
 import (
 	"bytes"
