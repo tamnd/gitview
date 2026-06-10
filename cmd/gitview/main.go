@@ -26,6 +26,7 @@ import (
 
 	"github.com/tamnd/gitview/backend"
 	"github.com/tamnd/gitview/backend/ghapi"
+	"github.com/tamnd/gitview/backend/hf"
 	"github.com/tamnd/gitview/backend/local"
 	"github.com/tamnd/gitview/server"
 )
@@ -37,6 +38,7 @@ func main() {
 	open := flag.Bool("open", false, "open the browser after starting")
 	dev := flag.Bool("dev", false, "show error details in responses")
 	token := flag.String("token", "", "GitHub token for remote targets (defaults to $GITHUB_TOKEN)")
+	hfToken := flag.String("hf-token", "", "Hugging Face token for hf targets (defaults to $HF_TOKEN)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Usage = usage
 	flag.Parse()
@@ -59,11 +61,14 @@ func main() {
 	if *token == "" {
 		*token = os.Getenv("GITHUB_TOKEN")
 	}
+	if *hfToken == "" {
+		*hfToken = os.Getenv("HF_TOKEN")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	repos, err := openTarget(ctx, target, *token)
+	repos, err := openTarget(ctx, target, *token, *hfToken)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gitview:", err)
 		os.Exit(1)
@@ -117,6 +122,9 @@ Targets:
   DIR                 a directory whose children are repositories
   gh:OWNER/REPO       a repository on github.com over the REST API
   https://github.com/OWNER/REPO  same, by URL
+  hf:OWNER/NAME       a model on huggingface.co over the Hub API
+  hf:datasets/OWNER/NAME         a dataset; hf:spaces/OWNER/NAME a space
+  https://huggingface.co/OWNER/NAME  same, by URL
 
 Flags:
 `)
@@ -124,11 +132,19 @@ Flags:
 }
 
 // openTarget turns the command line target into backends. Remote GitHub
-// targets get the API backend; a local git repository serves alone; any
-// other directory is scanned one level deep for repositories.
-func openTarget(ctx context.Context, target, token string) ([]backend.Repo, error) {
+// and Hugging Face targets get their API backends; a local git repository
+// serves alone; any other directory is scanned one level deep for
+// repositories.
+func openTarget(ctx context.Context, target, token, hfToken string) ([]backend.Repo, error) {
 	if owner, name, ok := parseRemote(target); ok {
 		return []backend.Repo{ghapi.New(owner, name, token)}, nil
+	}
+	kind, owner, name, err := parseHub(target)
+	if err != nil {
+		return nil, err
+	}
+	if kind != "" {
+		return []backend.Repo{hf.New(kind, owner, name, hfToken)}, nil
 	}
 	abs, err := filepath.Abs(target)
 	if err != nil {
@@ -188,6 +204,45 @@ func parseRemote(target string) (owner, name string, ok bool) {
 		return "", "", false
 	}
 	return owner, name, true
+}
+
+// parseHub recognizes hf: shorthands and huggingface.co URLs. A target in
+// neither form returns all-empty with a nil error; a target that is clearly
+// meant for the Hub but malformed returns an error rather than falling
+// through to the filesystem.
+func parseHub(target string) (kind, owner, name string, err error) {
+	slug := ""
+	isURL := false
+	switch {
+	case strings.HasPrefix(target, "hf:"):
+		slug = strings.TrimPrefix(target, "hf:")
+	case strings.HasPrefix(target, "https://huggingface.co/"):
+		slug, isURL = strings.TrimPrefix(target, "https://huggingface.co/"), true
+	case strings.HasPrefix(target, "http://huggingface.co/"):
+		slug, isURL = strings.TrimPrefix(target, "http://huggingface.co/"), true
+	case strings.HasPrefix(target, "huggingface.co/"):
+		slug, isURL = strings.TrimPrefix(target, "huggingface.co/"), true
+	default:
+		return "", "", "", nil
+	}
+	slug = strings.Trim(slug, "/")
+	kind = "model"
+	if rest, found := strings.CutPrefix(slug, "datasets/"); found {
+		kind, slug = "dataset", rest
+	} else if rest, found := strings.CutPrefix(slug, "spaces/"); found {
+		kind, slug = "space", rest
+	}
+	parts := strings.Split(slug, "/")
+	bad := len(parts) < 2 || parts[0] == "" || parts[1] == ""
+	// The shorthand must be exactly owner/name; a pasted URL may carry a
+	// deeper path (tree/main/...) which is ignored, like the GitHub form.
+	if !bad && !isURL && len(parts) > 2 {
+		bad = true
+	}
+	if bad {
+		return "", "", "", fmt.Errorf("%s: expected hf:[datasets/|spaces/]OWNER/NAME or a huggingface.co URL", target)
+	}
+	return kind, parts[0], parts[1], nil
 }
 
 func plural(n int, one, many string) string {
