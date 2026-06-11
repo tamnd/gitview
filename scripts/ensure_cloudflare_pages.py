@@ -39,23 +39,24 @@ def request(method: str, url: str, token: str, payload: dict[str, object] | None
     return parsed
 
 
-def ensure_project(account_id: str, token: str, project: str, branch: str) -> None:
+def ensure_project(account_id: str, token: str, project: str, branch: str) -> str:
     url = f"{API}/accounts/{account_id}/pages/projects/{project}"
     try:
-        request("GET", url, token)
+        result = request("GET", url, token)
         print(f"project exists: {project}")
-        return
+        return result["result"]["subdomain"]
     except SystemExit as exc:
         if "HTTP 404" not in str(exc):
             raise
 
-    request(
+    result = request(
         "POST",
         f"{API}/accounts/{account_id}/pages/projects",
         token,
         {"name": project, "production_branch": branch},
     )
     print(f"created project: {project}")
+    return result["result"]["subdomain"]
 
 
 def ensure_custom_domain(account_id: str, token: str, project: str, domain: str) -> None:
@@ -126,9 +127,13 @@ def main() -> int:
     account_id = os.environ["CLOUDFLARE_ACCOUNT_ID"]
     token = os.environ["CLOUDFLARE_API_TOKEN"]
 
-    ensure_project(account_id, token, args.project, args.branch)
+    # The pages.dev subdomain is not always {project}.pages.dev: when the
+    # name is taken globally, Cloudflare assigns a suffixed one. A CNAME at
+    # the guessed name points at a stranger's project and the custom domain
+    # never validates, so always ask the API for the real subdomain.
+    subdomain = ensure_project(account_id, token, args.project, args.branch)
     if args.domain:
-        target = args.dns_target or f"{args.project}.pages.dev"
+        target = args.dns_target or subdomain
         zone = args.zone or default_zone(args.domain)
         ensure_custom_domain(account_id, token, args.project, args.domain)
         ensure_dns(token, zone, args.domain, target)
