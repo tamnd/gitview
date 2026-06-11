@@ -26,7 +26,9 @@
       <a class="btn btn-sm" href="{{.BlameURL}}" data-hotkey="b">Blame</a>
       {{- end}}
       <a class="btn btn-sm" href="{{.HistURL}}">History</a>
+      {{- if .CanCopy}}
       <button class="btn btn-sm js-copy" type="button" data-copy-target="blob" aria-label="Copy raw content">{{octicon "copy"}}</button>
+      {{- end}}
     </div>
   </div>
 

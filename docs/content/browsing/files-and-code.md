@@ -1,6 +1,6 @@
 ---
 title: "Files and code"
-description: "Tree pages, the blob viewer, line anchors and permalinks, markdown, and how binary, image, LFS, and oversized files render."
+description: "Tree pages, the blob viewer, line anchors and permalinks, markdown, and the previews: images, media, pdf, docx, csv, parquet."
 weight: 20
 ---
 
@@ -38,15 +38,39 @@ click away. Alerts, task lists, tables, footnotes, and heading anchors all
 work. Sanitization is strict: scripts, event handlers, and `javascript:`
 links never survive, even inside raw HTML blocks.
 
+## File previews
+
+Every file type below renders as a preview on the blob page. Text-backed
+previews (markdown, csv) keep a `Code` toggle to the plain source; the
+rest show the content directly.
+
+| File | What you get |
+|---|---|
+| Images | rendered inline (PNG, JPEG, GIF, SVG, WebP, AVIF); SVG is served sandboxed |
+| Audio | a player (MP3, WAV, OGG, FLAC, M4A, Opus) with seeking |
+| Video | a player (MP4, WebM, MOV, OGV) with seeking, no autoplay |
+| PDF | the browser's own viewer, embedded |
+| Word (.docx) | extracted text at reading fidelity: headings, bold and italic, lists, tables, external links |
+| CSV / TSV | a table with a header row, row numbers, and a `Code` toggle; semicolon csv detected; capped at 1,000 rows and 100 columns with a note |
+| Parquet | the schema (every column with its type) plus the first 100 rows; the total row count comes from the file footer |
+
+A preview that cannot parse its file falls back to the next sensible
+view instead of an error page: a corrupt parquet shows the binary
+notice, a malformed csv shows the source.
+
 ## Files that are not text
 
 | File | What you get |
 |---|---|
-| Images | rendered inline (PNG, JPEG, GIF, SVG, WebP); SVG is served sandboxed |
 | Binary | a "binary file not shown" notice with the size and a `Raw` download link |
 | Git LFS pointer | an LFS banner with the object id and true size, no accidental gigabyte download |
 | Symlink | the link target, shown as the file content, like git stores it |
 | Over 10 MB | a too-large notice with a `Raw` link; the page stays fast |
+
+On Hugging Face repos, parquet and media files above the LFS threshold
+show the LFS banner rather than a preview; gitview never downloads an
+LFS object behind your back. Clone the repo and point gitview at the
+local copy to preview those.
 
 ## Raw files
 

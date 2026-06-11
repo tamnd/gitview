@@ -1,6 +1,7 @@
 package server
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -930,4 +931,46 @@ func TestTabularAndParquetViewers(t *testing.T) {
 	_, body = get(t, s, "/octo/data/blob/main/data.parquet")
 	mustContain(t, body, `data-kind="parquet"`, "parquet-schema",
 		"<td>alpha</td>", "INT64", "row group")
+}
+
+func TestDocxViewerAndCopyHonesty(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	f, err := zw.Create("word/document.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = f.Write([]byte(`<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Report</w:t></w:r></w:p></w:body></w:document>`))
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	g := gittest.New(t)
+	g.Write("report.docx", buf.String())
+	g.Write("logo.png", "\x89PNG\r\n\x1a\nfake")
+	g.Write("main.go", "package main\n")
+	g.Commit("docx fixture")
+	g.SetOrigin("https://github.com/octo/docs.git")
+	repo, err := local.New(context.Background(), g.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(context.Background(), []backend.Repo{repo}, Options{Dev: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, body := get(t, s, "/octo/docs/blob/main/report.docx")
+	mustContain(t, body, `data-kind="docx"`, "<h1>Report</h1>", "1 word")
+	if strings.Contains(body, "js-copy") {
+		t.Error("copy button offered on a binary-backed preview")
+	}
+
+	_, body = get(t, s, "/octo/docs/blob/main/logo.png")
+	if strings.Contains(body, "js-copy") {
+		t.Error("copy button offered on an image")
+	}
+
+	_, body = get(t, s, "/octo/docs/blob/main/main.go")
+	mustContain(t, body, "js-copy")
 }

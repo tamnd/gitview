@@ -39,8 +39,22 @@ Repository content is untrusted input and is treated that way:
 - Pages ship a strict Content-Security-Policy; there is no inline script
   except a hashed theme bootstrap.
 - SVGs render sandboxed, where they cannot run scripts.
+- File previews (csv, parquet, docx) build their HTML from escaped text
+  only; a hostile cell or document run renders as text. Parsers are
+  capped (8 MB of inflate for docx, fixed row and cell limits for
+  tables), so a crafted file costs bounded work.
 - Path traversal is rejected before routing; hostile file names, branch
   names, and commit messages render as text, not as markup or flags.
+
+One deliberate exception is documented here plainly: raw responses
+normally carry `Content-Security-Policy: default-src 'none'; sandbox`,
+but for `application/pdf` the sandbox keyword is dropped, because
+Chromium refuses to start its PDF viewer inside a CSP-sandboxed
+document. PDF raw responses carry `frame-ancestors 'self'` instead, so
+other sites cannot embed them. PDFs render in the browser's isolated
+viewer process and gitview holds no cookies or credentials a PDF could
+reach; the residual exposure of opening a hostile PDF is the same one
+your file manager gives you.
 
 ## Tokens
 

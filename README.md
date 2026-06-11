@@ -17,7 +17,8 @@ Full documentation lives at [gitview.tamnd.com](https://gitview.tamnd.com).
 
 gitview covers the code browsing surfaces and nothing else: repo home with the
 file table and rendered README, tree and blob views with syntax highlighting
-and line anchors, commits, commit diffs, branches, tags, blame, archive
+and line anchors, file previews (images, audio, video, pdf, docx, csv,
+parquet), commits, commit diffs, branches, tags, blame, archive
 downloads, the `t` file finder, light and dark themes, and the same URL scheme
 as github.com so deep links transfer by swapping the host. There are no
 issues, pull requests, accounts, or write operations, and there never will be.

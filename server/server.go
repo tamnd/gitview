@@ -62,6 +62,7 @@ func New(ctx context.Context, repos []backend.Repo, opts Options) (*Server, erro
 			viewer.Audio(),
 			viewer.Video(),
 			viewer.PDF(),
+			viewer.Docx(),
 			viewer.Parquet(),
 			viewer.Tabular(),
 			viewer.Markdown(),
