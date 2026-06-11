@@ -660,6 +660,15 @@ html[data-color-mode="auto"] .theme-icon-dark { display: none; }
   user-select: none;
 }
 .parquet-schema { border-bottom: 1px solid var(--color-border-default); }
+.docx-body { tab-size: 4; }
+.docx-body li.docx-ilvl-1 { margin-left: 24px; }
+.docx-body li.docx-ilvl-2 { margin-left: 48px; }
+.docx-body li.docx-ilvl-3 { margin-left: 72px; }
+.docx-body li.docx-ilvl-4 { margin-left: 96px; }
+.docx-body li.docx-ilvl-5 { margin-left: 120px; }
+.docx-body li.docx-ilvl-6 { margin-left: 144px; }
+.docx-body li.docx-ilvl-7 { margin-left: 168px; }
+.docx-body li.docx-ilvl-8 { margin-left: 192px; }
 
 /* ---- Commits list ------------------------------------------------------ */
 

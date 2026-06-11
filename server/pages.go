@@ -290,6 +290,10 @@ func (s *Server) handleBlob(w http.ResponseWriter, r *http.Request, rs *repoStat
 		data["Viewer"] = out
 		data["Toggle"] = toggle
 		data["Plain"] = in.Plain
+		// The copy button reads the code table's text, so it is only
+		// honest when the code viewer rendered; previews keep it one
+		// toggle away instead of offering a button that copies nothing.
+		data["CanCopy"] = out.Kind == "code"
 	}
 	s.render(w, r, http.StatusOK, "blob", data)
 }
