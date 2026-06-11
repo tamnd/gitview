@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/parquet-go/parquet-go"
 	"github.com/tamnd/gitview/backend"
 	"github.com/tamnd/gitview/backend/local"
 	"github.com/tamnd/gitview/gittest"
@@ -885,4 +887,47 @@ func TestMediaAndPDFViewers(t *testing.T) {
 	if got := rec.Body.String(); got != "ID3f" {
 		t.Errorf("range body = %q", got)
 	}
+}
+
+func TestTabularAndParquetViewers(t *testing.T) {
+	var buf bytes.Buffer
+	w := parquet.NewGenericWriter[struct {
+		ID   int64  `parquet:"id"`
+		Name string `parquet:"name"`
+	}](&buf)
+	if _, err := w.Write([]struct {
+		ID   int64  `parquet:"id"`
+		Name string `parquet:"name"`
+	}{{1, "alpha"}, {2, "beta"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	g := gittest.New(t)
+	g.Write("data.csv", "name,qty\nwidget,2\ngadget,5\n")
+	g.Write("data.parquet", buf.String())
+	g.Commit("data fixtures")
+	g.SetOrigin("https://github.com/octo/data.git")
+	repo, err := local.New(context.Background(), g.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(context.Background(), []backend.Repo{repo}, Options{Dev: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, body := get(t, s, "/octo/data/blob/main/data.csv")
+	mustContain(t, body, `data-kind="csv"`, "<th>name</th>", "<td>gadget</td>",
+		"2 rows x 2 columns", "Preview", "Code")
+
+	// The plain view falls to the code viewer but keeps the toggle.
+	_, body = get(t, s, "/octo/data/blob/main/data.csv?plain=1")
+	mustContain(t, body, "code-table", "Preview")
+
+	_, body = get(t, s, "/octo/data/blob/main/data.parquet")
+	mustContain(t, body, `data-kind="parquet"`, "parquet-schema",
+		"<td>alpha</td>", "INT64", "row group")
 }

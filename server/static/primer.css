@@ -628,6 +628,38 @@ html[data-color-mode="auto"] .theme-icon-dark { display: none; }
 .blob-media audio { width: 100%; max-width: 640px; }
 .blob-media video { max-width: 100%; max-height: 70vh; }
 .blob-frame iframe { display: block; width: 100%; height: 80vh; border: 0; background: var(--color-canvas-subtle); }
+.blob-note {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  background: var(--color-canvas-subtle);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.data-table-wrap { overflow-x: auto; }
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.data-table th, .data-table td {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-muted);
+  text-align: left;
+  white-space: pre;
+  vertical-align: top;
+}
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-canvas-subtle);
+}
+.data-table .data-num {
+  color: var(--color-fg-muted);
+  text-align: right;
+  user-select: none;
+}
+.parquet-schema { border-bottom: 1px solid var(--color-border-default); }
 
 /* ---- Commits list ------------------------------------------------------ */
 

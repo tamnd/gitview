@@ -1,0 +1,10 @@
+{{define "tabular" -}}
+<div class="data-table-wrap"><table class="data-table" data-kind="csv" data-dialect="{{.Dialect}}">
+<thead><tr><th class="data-num"></th>{{range .Header}}<th>{{.}}</th>{{end}}</tr></thead>
+<tbody>
+{{- range .Rows}}
+<tr><td class="data-num">{{.Num}}</td>{{range .Cells}}<td>{{.}}</td>{{end}}</tr>
+{{- end}}
+</tbody>
+</table></div>
+{{- end}}
