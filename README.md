@@ -25,8 +25,18 @@ issues, pull requests, accounts, or write operations, and there never will be.
 
 ## Install
 
+Prebuilt binaries for Linux, macOS, Windows, and FreeBSD, plus deb/rpm/apk
+packages, are on the [releases page](https://github.com/tamnd/gitview/releases).
+Or:
+
 ```
 go install github.com/tamnd/gitview/cmd/gitview@latest
+```
+
+There is also a container image with git inside:
+
+```
+docker run -v ~/src:/repos:ro -p 9419:9419 ghcr.io/tamnd/gitview
 ```
 
 The local backend shells out to `git`, which you already have.

@@ -1,0 +1,259 @@
+# GoReleaser turns one tag push into everything a user might install from:
+# raw archives, Linux packages (deb, rpm, apk), a multi-arch container image,
+# and entries for the package managers (Homebrew, Scoop, winget, the AUR,
+# Nix). `git tag vX.Y.Z && git push --tags` fans out to all of them through
+# .github/workflows/release.yml.
+#
+# Publish steps that push to a repository we do not own yet (the Homebrew
+# tap, the Scoop bucket, the winget fork, the AUR, the Nix user repository)
+# self-disable when their token is absent. A release with no extra secrets
+# still produces every downloadable artifact and the container image; each
+# manager lights up the moment its repository and token exist.
+version: 2
+
+project_name: gitview
+
+before:
+  # Only fetch modules; never `go mod tidy` during a release, the tree is
+  # kept tidy in CI.
+  hooks:
+    - go mod download
+
+builds:
+  - id: gitview
+    binary: gitview
+    main: ./cmd/gitview
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    targets:
+      - linux_amd64
+      - linux_arm64
+      - linux_arm_7
+      - linux_386
+      - darwin_amd64
+      - darwin_arm64
+      - windows_amd64
+      - windows_arm64
+      - freebsd_amd64
+      - freebsd_arm64
+
+archives:
+  # tar.gz everywhere except a zip on Windows.
+  - id: default
+    name_template: "gitview_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+nfpms:
+  # One nfpm definition emits the deb, rpm, and apk for every Linux build.
+  # gitview is a user command, not a daemon, so there is no unit file and no
+  # postinstall: the package is the binary, the license, and a git dependency
+  # for the local backend.
+  - id: linux-packages
+    package_name: gitview
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: tamnd
+    homepage: https://gitview.tamnd.com
+    maintainer: Duc-Tam Nguyen <tamnd87@gmail.com>
+    description: GitHub-style web viewer for local git repositories, GitHub, and Hugging Face.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    section: utils
+    dependencies:
+      - git
+    contents:
+      - src: ./LICENSE
+        dst: /usr/share/doc/gitview/LICENSE
+    overrides:
+      apk:
+        # apk has no soft dependency metadata worth fighting; ship the binary
+        # and the license, git is one `apk add git` away.
+        dependencies: []
+
+dockers_v2:
+  # One multi-platform image built with buildx. GoReleaser stages the prebuilt
+  # binaries under per-platform directories in the build context and the
+  # Dockerfile copies the right one through $TARGETPLATFORM. The image carries
+  # a real git binary because the local backend shells out to it.
+  - images:
+      - ghcr.io/tamnd/gitview
+    tags:
+      - "{{ .Version }}"
+      - latest
+    dockerfile: Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.description: "GitHub-style web viewer for git repositories"
+      org.opencontainers.image.url: "https://gitview.tamnd.com"
+      org.opencontainers.image.source: "https://github.com/tamnd/gitview"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: "MIT"
+
+homebrew_casks:
+  # Homebrew cask pushed to the tap repository (the formula DSL is being
+  # retired in favor of casks). Self-disables until HOMEBREW_TAP_GITHUB_TOKEN
+  # (a PAT with write to tamnd/homebrew-tap) is set, so a tokenless release
+  # still writes the cask into dist for inspection.
+  - name: gitview
+    repository:
+      owner: tamnd
+      name: homebrew-tap
+      token: '{{ envOrDefault "HOMEBREW_TAP_GITHUB_TOKEN" "" }}'
+    directory: Casks
+    homepage: https://gitview.tamnd.com
+    description: GitHub-style web viewer for git repositories
+    dependencies:
+      - formula: git
+    # An unset secret arrives as an empty (but defined) env var in CI, so gate
+    # on the value being non-empty, not merely set.
+    skip_upload: '{{ if envOrDefault "HOMEBREW_TAP_GITHUB_TOKEN" "" }}false{{ else }}true{{ end }}'
+    commit_author:
+      name: Duc-Tam Nguyen
+      email: tamnd87@gmail.com
+
+scoops:
+  # Scoop manifest for Windows, pushed to the bucket repository.
+  - repository:
+      owner: tamnd
+      name: scoop-bucket
+      token: '{{ envOrDefault "SCOOP_BUCKET_GITHUB_TOKEN" "" }}'
+    homepage: https://gitview.tamnd.com
+    description: GitHub-style web viewer for git repositories
+    license: MIT
+    skip_upload: '{{ if envOrDefault "SCOOP_BUCKET_GITHUB_TOKEN" "" }}false{{ else }}true{{ end }}'
+    commit_author:
+      name: Duc-Tam Nguyen
+      email: tamnd87@gmail.com
+
+winget:
+  # winget manifest, opened as a pull request against a fork of microsoft's
+  # winget-pkgs. Self-disables until the fork token is present.
+  - name: gitview
+    publisher: tamnd
+    publisher_url: https://github.com/tamnd
+    license: MIT
+    homepage: https://gitview.tamnd.com
+    short_description: GitHub-style web viewer for git repositories
+    package_identifier: tamnd.gitview
+    repository:
+      owner: tamnd
+      name: winget-pkgs
+      branch: "gitview-{{ .Version }}"
+      token: '{{ envOrDefault "WINGET_GITHUB_TOKEN" "" }}'
+      pull_request:
+        enabled: true
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+    skip_upload: '{{ if envOrDefault "WINGET_GITHUB_TOKEN" "" }}false{{ else }}true{{ end }}'
+    commit_author:
+      name: Duc-Tam Nguyen
+      email: tamnd87@gmail.com
+
+aurs:
+  # Arch User Repository PKGBUILD, pushed over SSH. Self-disables until
+  # AUR_KEY (the AUR account's private SSH key) is present.
+  - name: gitview-bin
+    homepage: https://gitview.tamnd.com
+    description: GitHub-style web viewer for git repositories
+    license: MIT
+    maintainers:
+      - "Duc-Tam Nguyen <tamnd87@gmail.com>"
+    private_key: '{{ envOrDefault "AUR_KEY" "" }}'
+    git_url: ssh://aur@aur.archlinux.org/gitview-bin.git
+    skip_upload: '{{ if envOrDefault "AUR_KEY" "" }}false{{ else }}true{{ end }}'
+    depends:
+      - git
+    provides:
+      - gitview
+    conflicts:
+      - gitview
+    package: |-
+      install -Dm755 "./gitview" "${pkgdir}/usr/bin/gitview"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/gitview-bin/LICENSE"
+
+nix:
+  # Nix derivation pushed to the Nix user repository.
+  - name: gitview
+    repository:
+      owner: tamnd
+      name: nur
+      token: '{{ envOrDefault "NUR_GITHUB_TOKEN" "" }}'
+    homepage: https://gitview.tamnd.com
+    description: GitHub-style web viewer for git repositories
+    license: mit
+    skip_upload: '{{ if envOrDefault "NUR_GITHUB_TOKEN" "" }}false{{ else }}true{{ end }}'
+    commit_author:
+      name: Duc-Tam Nguyen
+      email: tamnd87@gmail.com
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+sboms:
+  # A CycloneDX SBOM per archive via syft; the release workflow installs it.
+  - id: archive
+    artifacts: archive
+
+signs:
+  # Keyless cosign signature over the checksum file. It runs only on a real
+  # release in CI, where the workflow grants the OIDC token cosign needs.
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+docker_signs:
+  - cmd: cosign
+    artifacts: manifests
+    args:
+      - sign
+      - "${artifact}@${digest}"
+      - "--yes"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "merge conflict"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Other
+      order: 999
