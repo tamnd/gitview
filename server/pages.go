@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/tamnd/gitview/backend"
+	"github.com/tamnd/gitview/server/viewer"
 )
 
 const commitsPerPage = 35
@@ -143,11 +145,11 @@ func (s *Server) renderTree(w http.ResponseWriter, r *http.Request, rs *repoStat
 
 	var readmeName string
 	var readme template.HTML
-	if name, ok := findReadme(entries); ok && isMarkdownFile(name) {
+	if name, ok := viewer.FindReadme(entries); ok && viewer.IsMarkdownFile(name) {
 		full := path.Join(pth, name)
 		if b, err := rs.repo.Blob(r.Context(), rev, full); err == nil && !b.Binary && b.LFS == nil && !b.TooBig {
 			readmeName = name
-			readme = renderMarkdown(mdContext{RepoPath: "/" + key, Ref: ref, Dir: pth}, b.Content)
+			readme = viewer.RenderMarkdown(viewer.MarkdownContext{RepoPath: "/" + key, Ref: ref, Dir: pth}, b.Content)
 		}
 	}
 
@@ -228,7 +230,6 @@ func (s *Server) handleBlob(w http.ResponseWriter, r *http.Request, rs *repoStat
 
 	key := rs.key()
 	name := path.Base(pth)
-	kind := classifyBlob(name, blob, r.URL.Query().Get("plain") == "1")
 	data := map[string]any{
 		"Page":     s.repoPage(r, rs, rs.info.Name+"/"+pth+" at "+ref+" · "+key, "code", ref, pth),
 		"Crumbs":   crumbs(key, "blob", ref, pth),
@@ -239,38 +240,56 @@ func (s *Server) handleBlob(w http.ResponseWriter, r *http.Request, rs *repoStat
 		"HistURL":  commitsURL(key, ref, pth),
 		"PlainURL": "/" + key + "/blob/" + ref + "/" + pth + "?plain=1",
 		"RichURL":  "/" + key + "/blob/" + ref + "/" + pth,
-		"Markdown": isMarkdownFile(name),
 		// Hidden once Blame has returned ErrUnsupported (doc 02 §4).
 		"ShowBlame": rs.capState(&rs.blameCap) != capNo,
 	}
-	switch kind {
-	case blobSymlink:
+
+	// Structural states first: they are states of the blob record, not
+	// content types, so no viewer could render them (doc 18 §2.3).
+	switch {
+	case blob.Symlink:
 		data["Kind"] = "symlink"
 		data["Target"] = strings.TrimSpace(string(blob.Content))
-	case blobMarkdown:
-		data["Kind"] = "markdown"
-		data["Rendered"] = renderMarkdown(mdContext{RepoPath: "/" + key, Ref: ref, Dir: path.Dir(strings.TrimSuffix(pth, name))}, blob.Content)
-	case blobImage:
-		data["Kind"] = "image"
-	case blobLFS:
+	case blob.LFS != nil:
 		data["Kind"] = "lfs"
 		data["Size"] = blob.LFS.Size
 		data["OID"] = blob.LFS.OID
-	case blobTooBig:
+	case blob.TooBig:
 		data["Kind"] = "toobig"
-	case blobBinary:
-		data["Kind"] = "binary"
-	case blobEmpty:
+	case len(blob.Content) == 0:
 		data["Kind"] = "empty"
 	default:
-		data["Kind"] = "code"
-		lines := codeLines(name, string(blob.Content))
-		data["Lines"] = lines
-		data["LineCount"] = len(lines)
-	}
-	if mctx, ok := data["Kind"].(string); ok && mctx == "markdown" {
-		// Markdown line count still shown in the toolbar.
-		data["LineCount"] = len(splitLines(string(blob.Content)))
+		in := viewer.Input{
+			Name:     name,
+			Path:     pth,
+			Ext:      strings.ToLower(path.Ext(name)),
+			Content:  blob.Content,
+			Size:     blob.Size,
+			Binary:   blob.Binary,
+			RawURL:   "/" + key + "/raw/" + ref + "/" + pth,
+			RepoPath: "/" + key,
+			Ref:      ref,
+			Plain:    r.URL.Query().Get("plain") == "1",
+		}
+		out, ok := s.viewers.Render(in)
+		if !ok {
+			data["Kind"] = "binary"
+			break
+		}
+		toggle := out.Toggle
+		if !toggle && in.Plain {
+			// Keep the Preview / Code control visible on the plain view of
+			// a file whose rich viewer deferred to the code viewer.
+			rich := in
+			rich.Plain = false
+			if k, would := s.viewers.Probe(rich); would && k != out.Kind {
+				toggle = true
+			}
+		}
+		data["Kind"] = "viewer"
+		data["Viewer"] = out
+		data["Toggle"] = toggle
+		data["Plain"] = in.Plain
 	}
 	s.render(w, r, http.StatusOK, "blob", data)
 }
@@ -292,7 +311,7 @@ func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request, rs *repoState
 	}
 	h := w.Header()
 	ct := "text/plain; charset=utf-8"
-	if mime, ok := imageExts[strings.ToLower(path.Ext(pth))]; ok {
+	if mime, ok := viewer.MIME(strings.ToLower(path.Ext(pth))); ok {
 		ct = mime
 	} else if blob.Binary {
 		ct = "application/octet-stream"
@@ -301,7 +320,9 @@ func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request, rs *repoState
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	h.Set("Cache-Control", "no-cache")
-	_, _ = w.Write(blob.Content)
+	// ServeContent gives us Range, HEAD, and 206 handling for media; the
+	// empty name and zero time keep it from guessing the type or etag.
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(blob.Content))
 }
 
 func (s *Server) handleCommits(w http.ResponseWriter, r *http.Request, rs *repoState) {

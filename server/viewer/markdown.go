@@ -1,4 +1,4 @@
-package server
+package viewer
 
 import (
 	"bytes"
@@ -20,9 +20,9 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-// mdContext tells the rewriter where the markdown file lives so relative
+// MarkdownContext tells the rewriter where the markdown file lives so relative
 // links and images resolve to blob and raw URLs.
-type mdContext struct {
+type MarkdownContext struct {
 	RepoPath string // "/owner/name"
 	Ref      string
 	Dir      string // directory of the source file, "" at the root
@@ -30,11 +30,11 @@ type mdContext struct {
 
 var mdCtxKey = parser.NewContextKey()
 
-// renderMarkdown runs the pipeline: goldmark with GFM and our transformers,
+// RenderMarkdown runs the pipeline: goldmark with GFM and our transformers,
 // then bluemonday, then trusted post-passes that add heading anchors and
 // alert icons. Sanitizing after rendering is the security boundary; the
 // post-passes only touch markup the sanitizer already approved.
-func renderMarkdown(mctx mdContext, src []byte) template.HTML {
+func RenderMarkdown(mctx MarkdownContext, src []byte) template.HTML {
 	var buf bytes.Buffer
 	pc := parser.NewContext()
 	pc.Set(mdCtxKey, mctx)
@@ -91,7 +91,7 @@ func buildPolicy() *bluemonday.Policy {
 type linkRewriter struct{}
 
 func (t *linkRewriter) Transform(doc *ast.Document, reader text.Reader, pc parser.Context) {
-	v, ok := pc.Get(mdCtxKey).(mdContext)
+	v, ok := pc.Get(mdCtxKey).(MarkdownContext)
 	if !ok {
 		return
 	}
@@ -109,7 +109,7 @@ func (t *linkRewriter) Transform(doc *ast.Document, reader text.Reader, pc parse
 	})
 }
 
-func rewriteURL(v mdContext, dest []byte, kind string) []byte {
+func rewriteURL(v MarkdownContext, dest []byte, kind string) []byte {
 	d := string(dest)
 	if d == "" || strings.HasPrefix(d, "#") || strings.HasPrefix(d, "//") || hasScheme(d) {
 		return dest
@@ -248,7 +248,7 @@ func (r *fenceRenderer) render(w util.BufWriter, source []byte, node ast.Node, e
 	if lang == "" {
 		filename = "x.txt"
 	}
-	for i, l := range highlightLines(filename, content.String()) {
+	for i, l := range HighlightLines(filename, content.String()) {
 		if i > 0 {
 			_, _ = w.WriteString("\n")
 		}
@@ -281,8 +281,8 @@ func addAlertIcons(b []byte) []byte {
 	})
 }
 
-// isMarkdownFile reports whether the blob should get a rendered preview.
-func isMarkdownFile(name string) bool {
+// IsMarkdownFile reports whether the blob should get a rendered preview.
+func IsMarkdownFile(name string) bool {
 	switch strings.ToLower(path.Ext(name)) {
 	case ".md", ".markdown", ".mdown", ".mkdn":
 		return true
@@ -290,8 +290,8 @@ func isMarkdownFile(name string) bool {
 	return false
 }
 
-// findReadme picks the readme github would show for a directory listing.
-func findReadme(entries []backend.TreeEntry) (string, bool) {
+// FindReadme picks the readme github would show for a directory listing.
+func FindReadme(entries []backend.TreeEntry) (string, bool) {
 	preference := []string{"readme.md", "readme.markdown", "readme.txt", "readme"}
 	byLower := map[string]string{}
 	for _, e := range entries {
@@ -305,4 +305,28 @@ func findReadme(entries []backend.TreeEntry) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// Markdown is the doc 09 pipeline behind the registry: rendered preview
+// by default, deferring to the code viewer under ?plain=1.
+func Markdown() Renderer { return markdownRenderer{} }
+
+type markdownRenderer struct{}
+
+func (markdownRenderer) Kind() string { return "markdown" }
+
+func (markdownRenderer) Match(in Input) bool {
+	return !in.Binary && !in.Plain && IsMarkdownFile(in.Name)
+}
+
+func (markdownRenderer) Render(in Input) (Output, error) {
+	mctx := MarkdownContext{RepoPath: in.RepoPath, Ref: in.Ref, Dir: path.Dir(in.Path)}
+	body := `<article class="markdown-body" data-kind="markdown">` +
+		string(RenderMarkdown(mctx, in.Content)) + `</article>`
+	n := len(splitLines(string(in.Content)))
+	info := fmt.Sprintf("%d lines", n)
+	if n == 1 {
+		info = "1 line"
+	}
+	return Output{Kind: "markdown", Body: template.HTML(body), Info: info, Toggle: true}, nil
 }

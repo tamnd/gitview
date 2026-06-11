@@ -5,10 +5,10 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
-	"path"
 	"strings"
 
 	"github.com/tamnd/gitview/backend"
+	"github.com/tamnd/gitview/server/viewer"
 )
 
 // page carries everything the layout shell needs; handlers wrap it in a map
@@ -113,51 +113,6 @@ func entryIcon(k backend.EntryKind) string {
 	}
 }
 
-// blobKind classifies a blob for the viewer.
-type blobKind int
-
-const (
-	blobCode blobKind = iota
-	blobMarkdown
-	blobImage
-	blobBinary
-	blobLFS
-	blobTooBig
-	blobEmpty
-	blobSymlink
-)
-
-var imageExts = map[string]string{
-	".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-	".gif": "image/gif", ".webp": "image/webp", ".ico": "image/x-icon",
-	".bmp": "image/bmp", ".avif": "image/avif", ".svg": "image/svg+xml",
-}
-
-func classifyBlob(name string, b backend.Blob, plain bool) blobKind {
-	switch {
-	case b.Symlink:
-		// Backends set this themselves (doc 08 §5.7); the content is the
-		// link target, so none of the other cases can apply.
-		return blobSymlink
-	case b.LFS != nil:
-		return blobLFS
-	case b.TooBig:
-		return blobTooBig
-	}
-	if _, ok := imageExts[strings.ToLower(path.Ext(name))]; ok {
-		return blobImage
-	}
-	switch {
-	case b.Binary:
-		return blobBinary
-	case len(b.Content) == 0:
-		return blobEmpty
-	case isMarkdownFile(name) && !plain:
-		return blobMarkdown
-	}
-	return blobCode
-}
-
 // codeLine pairs a line number with its highlighted fragment.
 type codeLine struct {
 	Num  int
@@ -165,7 +120,7 @@ type codeLine struct {
 }
 
 func codeLines(filename, content string) []codeLine {
-	frags := highlightLines(filename, content)
+	frags := viewer.HighlightLines(filename, content)
 	out := make([]codeLine, len(frags))
 	for i, f := range frags {
 		out[i] = codeLine{Num: i + 1, HTML: f}

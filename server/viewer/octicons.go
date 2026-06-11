@@ -1,7 +1,5 @@
-// Package server renders the gitview web UI.
-//
 // Code generated from @primer/octicons 19.15.1 (MIT). DO NOT EDIT by hand.
-package server
+package viewer
 
 import "html/template"
 

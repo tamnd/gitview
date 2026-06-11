@@ -11,14 +11,14 @@
   <div class="Box-header blob-header">
     <div class="blob-meta">
       <strong class="blob-name">{{.Name}}</strong>
-      {{- if .LineCount}}<span class="blob-info">{{.LineCount}} lines</span>{{end}}
+      {{- with .Viewer}}{{with .Info}}<span class="blob-info">{{.}}</span>{{end}}{{end}}
       <span class="blob-info">{{bytesize .Size}}</span>
     </div>
     <div class="blob-actions">
-      {{- if .Markdown}}
+      {{- if .Toggle}}
       <div class="segmented">
-        <a class="segmented-item{{if eq .Kind "markdown"}} selected{{end}}" href="{{.RichURL}}">Preview</a>
-        <a class="segmented-item{{if ne .Kind "markdown"}} selected{{end}}" href="{{.PlainURL}}">Code</a>
+        <a class="segmented-item{{if not .Plain}} selected{{end}}" href="{{.RichURL}}">Preview</a>
+        <a class="segmented-item{{if .Plain}} selected{{end}}" href="{{.PlainURL}}">Code</a>
       </div>
       {{- end}}
       <a class="btn btn-sm" href="{{.RawURL}}">Raw</a>
@@ -32,10 +32,6 @@
 
   {{- if eq .Kind "symlink"}}
   <div class="blob-notice"><p class="text-muted">symbolic link to {{.Target}}</p></div>
-  {{- else if eq .Kind "markdown"}}
-  <article class="markdown-body">{{.Rendered}}</article>
-  {{- else if eq .Kind "image"}}
-  <div class="blob-notice"><img class="blob-image" src="{{.RawURL}}" alt="{{.Name}}"></div>
   {{- else if eq .Kind "lfs"}}
   <div class="blob-notice">
     <p>{{octicon "file"}}</p>
@@ -55,16 +51,10 @@
   {{- else if eq .Kind "empty"}}
   <div class="blob-notice"><p class="text-muted">This file is empty.</p></div>
   {{- else}}
-  <table class="code-table js-code" id="blob">
-    <tbody>
-    {{- range .Lines}}
-    <tr class="code-row" id="L{{.Num}}">
-      <td class="code-num" data-line-number="{{.Num}}"></td>
-      <td class="code-cell">{{.HTML}}</td>
-    </tr>
-    {{- end}}
-    </tbody>
-  </table>
+  {{- with .Viewer.Note}}
+  <div class="blob-note">{{.}}</div>
+  {{- end}}
+  {{.Viewer.Body}}
   {{- end}}
 </div>
 {{end}}
