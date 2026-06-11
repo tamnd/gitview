@@ -59,6 +59,9 @@ func New(ctx context.Context, repos []backend.Repo, opts Options) (*Server, erro
 		// goes last and every text file always renders somehow.
 		viewers: viewer.NewRegistry(
 			viewer.Image(),
+			viewer.Audio(),
+			viewer.Video(),
+			viewer.PDF(),
 			viewer.Markdown(),
 			viewer.Code(),
 		),

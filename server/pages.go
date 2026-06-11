@@ -318,7 +318,14 @@ func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request, rs *repoState
 	}
 	h.Set("Content-Type", ct)
 	h.Set("X-Content-Type-Options", "nosniff")
-	h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	if ct == "application/pdf" {
+		// The CSP sandbox keyword makes Chromium refuse to instantiate
+		// its PDF viewer, so PDFs trade it for an embed restriction.
+		// Threat analysis in spec 2011 doc 18 section 4.3.
+		h.Set("Content-Security-Policy", "frame-ancestors 'self'")
+	} else {
+		h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	}
 	h.Set("Cache-Control", "no-cache")
 	// ServeContent gives us Range, HEAD, and 206 handling for media; the
 	// empty name and zero time keep it from guessing the type or etag.

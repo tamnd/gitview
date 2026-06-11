@@ -33,7 +33,8 @@ func loadTemplates(opts Options) (*templates, error) {
 		chromaCSS: viewer.ChromaCSS(),
 		csp: "default-src 'none'; img-src 'self' data: https:; style-src 'self'; " +
 			"script-src 'self' 'sha256-" + base64.StdEncoding.EncodeToString(hash[:]) + "'; " +
-			"connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+			"connect-src 'self'; media-src 'self'; frame-src 'self'; " +
+			"form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 		version: opts.Version,
 	}
 
