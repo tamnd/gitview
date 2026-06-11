@@ -1,4 +1,4 @@
-package server
+package viewer
 
 import (
 	"flag"
@@ -22,7 +22,7 @@ func TestMarkdownGolden(t *testing.T) {
 	if len(files) == 0 {
 		t.Fatal("no markdown fixtures found")
 	}
-	mctx := mdContext{RepoPath: "/octo/demo", Ref: "main", Dir: "docs"}
+	mctx := MarkdownContext{RepoPath: "/octo/demo", Ref: "main", Dir: "docs"}
 	for _, md := range files {
 		name := strings.TrimSuffix(filepath.Base(md), ".md")
 		t.Run(name, func(t *testing.T) {
@@ -30,7 +30,7 @@ func TestMarkdownGolden(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := string(renderMarkdown(mctx, src))
+			got := string(RenderMarkdown(mctx, src))
 			golden := strings.TrimSuffix(md, ".md") + ".html.golden"
 			if *update {
 				if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {

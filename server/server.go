@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/tamnd/gitview/backend"
+	"github.com/tamnd/gitview/server/viewer"
 )
 
 //go:embed templates static
@@ -27,12 +28,13 @@ type Options struct {
 
 // Server renders the gitview UI for one or more repositories.
 type Server struct {
-	mux    *http.ServeMux
-	repos  map[string]*repoState // key "owner/name"
-	order  []string              // registration order for the index page
-	single *repoState            // set in single-repo mode
-	opts   Options
-	tpl    *templates
+	mux     *http.ServeMux
+	repos   map[string]*repoState // key "owner/name"
+	order   []string              // registration order for the index page
+	single  *repoState            // set in single-repo mode
+	opts    Options
+	tpl     *templates
+	viewers *viewer.Registry
 }
 
 // New builds a server for the given repositories. With exactly one
@@ -53,6 +55,13 @@ func New(ctx context.Context, repos []backend.Repo, opts Options) (*Server, erro
 		repos: make(map[string]*repoState),
 		opts:  opts,
 		tpl:   tpl,
+		// First match wins; Code matches every non-binary file, so it
+		// goes last and every text file always renders somehow.
+		viewers: viewer.NewRegistry(
+			viewer.Image(),
+			viewer.Markdown(),
+			viewer.Code(),
+		),
 	}
 	for _, repo := range repos {
 		rs, err := newRepoState(ctx, repo)

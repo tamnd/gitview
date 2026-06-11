@@ -1,8 +1,10 @@
-package server
+package viewer
 
 import (
+	"fmt"
 	"html/template"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
@@ -18,10 +20,10 @@ const (
 	maxHighlightLines = 20000
 )
 
-// highlightLines tokenizes content and returns one HTML fragment per line,
+// HighlightLines tokenizes content and returns one HTML fragment per line,
 // using chroma class names so the github and github-dark styles switch with
 // the page theme instead of re-rendering.
-func highlightLines(filename, content string) []template.HTML {
+func HighlightLines(filename, content string) []template.HTML {
 	lines := splitLines(content)
 	if len(content) > maxHighlightBytes || len(lines) > maxHighlightLines {
 		return escapeLines(lines)
@@ -101,9 +103,9 @@ func escapeLines(lines []string) []template.HTML {
 	return out
 }
 
-// chromaStylesheet renders the github light style plus the github-dark
+// ChromaCSS renders the github light style plus the github-dark
 // style scoped to the dark color mode, with an auto-mode media query copy.
-func chromaStylesheet() string {
+func ChromaCSS() string {
 	light := styleCSS("github")
 	dark := styleCSS("github-dark")
 
@@ -153,4 +155,32 @@ func scopeCSS(css, prefix string) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// Code is the final text fallback: the chroma table with line ids that
+// back the L{n} anchor contract (doc 08).
+func Code() Renderer { return codeRenderer{} }
+
+type codeRenderer struct{}
+
+func (codeRenderer) Kind() string { return "code" }
+
+func (codeRenderer) Match(in Input) bool { return !in.Binary }
+
+func (codeRenderer) Render(in Input) (Output, error) {
+	frags := HighlightLines(in.Name, string(in.Content))
+	var b strings.Builder
+	b.WriteString(`<table class="code-table js-code" id="blob" data-kind="code"><tbody>`)
+	for i, f := range frags {
+		n := strconv.Itoa(i + 1)
+		b.WriteString(`<tr class="code-row" id="L` + n + `"><td class="code-num" data-line-number="` + n + `"></td><td class="code-cell">`)
+		b.WriteString(string(f))
+		b.WriteString("</td></tr>\n")
+	}
+	b.WriteString(`</tbody></table>`)
+	info := fmt.Sprintf("%d lines", len(frags))
+	if len(frags) == 1 {
+		info = "1 line"
+	}
+	return Output{Kind: "code", Body: template.HTML(b.String()), Info: info}, nil
 }

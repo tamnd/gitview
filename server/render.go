@@ -10,6 +10,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/tamnd/gitview/server/viewer"
 )
 
 // themeBootstrap runs before first paint so a stored dark preference never
@@ -28,7 +30,7 @@ func loadTemplates(opts Options) (*templates, error) {
 	hash := sha256.Sum256([]byte(themeBootstrap))
 	t := &templates{
 		pages:     make(map[string]*template.Template),
-		chromaCSS: chromaStylesheet(),
+		chromaCSS: viewer.ChromaCSS(),
 		csp: "default-src 'none'; img-src 'self' data: https:; style-src 'self'; " +
 			"script-src 'self' 'sha256-" + base64.StdEncoding.EncodeToString(hash[:]) + "'; " +
 			"connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
@@ -75,7 +77,7 @@ func templateFuncs() template.FuncMap {
 }
 
 func octicon(name string) template.HTML {
-	return octicons[name]
+	return viewer.Octicon(name)
 }
 
 func shortSHA(sha string) string {
