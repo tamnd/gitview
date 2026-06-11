@@ -817,3 +817,72 @@ func TestHostileContent(t *testing.T) {
 		t.Errorf("raw nosniff header = %q", got)
 	}
 }
+
+func TestMediaAndPDFViewers(t *testing.T) {
+	g := gittest.New(t)
+	g.Write("song.mp3", "ID3fakeaudio")
+	g.Write("clip.mp4", "fakevideo")
+	g.Write("paper.pdf", "%PDF-1.4 fake")
+	g.Commit("media fixtures")
+	g.SetOrigin("https://github.com/octo/media.git")
+	repo, err := local.New(context.Background(), g.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(context.Background(), []backend.Repo{repo}, Options{Dev: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, body := get(t, s, "/octo/media/blob/main/song.mp3")
+	mustContain(t, body, `data-kind="audio"`, "<audio controls", `preload="metadata"`)
+
+	_, body = get(t, s, "/octo/media/blob/main/clip.mp4")
+	mustContain(t, body, `data-kind="video"`, "<video controls")
+
+	_, body = get(t, s, "/octo/media/blob/main/paper.pdf")
+	mustContain(t, body, `data-kind="pdf"`, "<iframe")
+
+	// The page policy lets same-origin media and frames through.
+	csp := res.Header.Get("Content-Security-Policy")
+	for _, src := range []string{"media-src 'self'", "frame-src 'self'"} {
+		if !strings.Contains(csp, src) {
+			t.Errorf("page CSP missing %q: %s", src, csp)
+		}
+	}
+
+	// Raw media keeps the sandbox and the right type.
+	res, _ = get(t, s, "/octo/media/raw/main/song.mp3")
+	if ct := res.Header.Get("Content-Type"); ct != "audio/mpeg" {
+		t.Errorf("mp3 Content-Type = %q", ct)
+	}
+	if !strings.Contains(res.Header.Get("Content-Security-Policy"), "sandbox") {
+		t.Error("raw mp3 lost the sandbox CSP")
+	}
+
+	// Raw PDF drops the sandbox (it blanks Chromium's viewer) and
+	// restricts embedding to gitview pages instead.
+	res, _ = get(t, s, "/octo/media/raw/main/paper.pdf")
+	if ct := res.Header.Get("Content-Type"); ct != "application/pdf" {
+		t.Errorf("pdf Content-Type = %q", ct)
+	}
+	pdfCSP := res.Header.Get("Content-Security-Policy")
+	if pdfCSP != "frame-ancestors 'self'" {
+		t.Errorf("pdf CSP = %q", pdfCSP)
+	}
+	if res.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Error("pdf raw lost nosniff")
+	}
+
+	// ServeContent gives media seeking: a Range request gets a 206.
+	req := httptest.NewRequest("GET", "/octo/media/raw/main/song.mp3", nil)
+	req.Header.Set("Range", "bytes=0-3")
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusPartialContent {
+		t.Errorf("range status = %d, want 206", rec.Code)
+	}
+	if got := rec.Body.String(); got != "ID3f" {
+		t.Errorf("range body = %q", got)
+	}
+}

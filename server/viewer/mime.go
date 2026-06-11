@@ -13,6 +13,22 @@ var mimeByExt = map[string]string{
 	".bmp":  "image/bmp",
 	".ico":  "image/x-icon",
 	".svg":  "image/svg+xml",
+
+	".mp3":  "audio/mpeg",
+	".wav":  "audio/wav",
+	".ogg":  "audio/ogg",
+	".oga":  "audio/ogg",
+	".flac": "audio/flac",
+	".m4a":  "audio/mp4",
+	".opus": "audio/ogg",
+
+	".mp4":  "video/mp4",
+	".m4v":  "video/mp4",
+	".webm": "video/webm",
+	".mov":  "video/quicktime",
+	".ogv":  "video/ogg",
+
+	".pdf": "application/pdf",
 }
 
 // MIME returns the Content-Type for a lowercased extension with dot.

@@ -624,6 +624,10 @@ html[data-color-mode="auto"] .theme-icon-dark { display: none; }
 
 .blob-notice { padding: 64px 16px; text-align: center; }
 .blob-image { max-width: 100%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='8' height='8' fill='%23eee'/%3E%3Crect x='8' y='8' width='8' height='8' fill='%23eee'/%3E%3C/svg%3E"); }
+.blob-media { padding: 16px; text-align: center; }
+.blob-media audio { width: 100%; max-width: 640px; }
+.blob-media video { max-width: 100%; max-height: 70vh; }
+.blob-frame iframe { display: block; width: 100%; height: 80vh; border: 0; background: var(--color-canvas-subtle); }
 
 /* ---- Commits list ------------------------------------------------------ */
 
