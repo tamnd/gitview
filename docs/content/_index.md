@@ -1,6 +1,10 @@
 ---
 title: "gitview"
 description: "Browse any git repository in your browser with a UI that looks and feels like github.com. One binary, read only, no setup."
+heroTitle: "The github.com code browser, for any repository"
+heroLead: "gitview is a single read-only binary that serves the github.com browsing experience for local repositories, GitHub repositories, and Hugging Face repos. Point it at a path or a URL and start reading code."
+heroPrimaryURL: "/getting-started/quick-start/"
+heroPrimaryText: "Get started"
 ---
 
 You know how to read code on github.com: the file table, the README under it,

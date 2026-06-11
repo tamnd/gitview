@@ -8,7 +8,3 @@ syntaxHighlight = "true"
 
 [params]
 github = "https://github.com/tamnd/gitview"
-heroTitle = "The github.com code browser, for any repository"
-heroLead = "gitview is a single read-only binary that serves the github.com browsing experience for local repositories, GitHub repositories, and Hugging Face repos. Point it at a path or a URL and start reading code."
-heroPrimaryURL = "/getting-started/quick-start/"
-heroPrimaryText = "Get started"
