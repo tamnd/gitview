@@ -1,0 +1,18 @@
+{{define "parquet" -}}
+<div class="data-table-wrap parquet-schema"><table class="data-table" data-kind="parquet-schema">
+<thead><tr><th>Column</th><th>Type</th><th>Repetition</th></tr></thead>
+<tbody>
+{{- range .Columns}}
+<tr><td>{{.Name}}</td><td>{{.Type}}</td><td>{{.Repetition}}</td></tr>
+{{- end}}
+</tbody>
+</table></div>
+<div class="data-table-wrap"><table class="data-table" data-kind="parquet">
+<thead><tr><th class="data-num"></th>{{range .Header}}<th>{{.}}</th>{{end}}</tr></thead>
+<tbody>
+{{- range .Rows}}
+<tr><td class="data-num">{{.Num}}</td>{{range .Cells}}<td>{{if .Null}}<em>null</em>{{else}}{{.Text}}{{end}}</td>{{end}}</tr>
+{{- end}}
+</tbody>
+</table></div>
+{{- end}}
