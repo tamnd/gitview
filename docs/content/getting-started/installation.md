@@ -1,8 +1,25 @@
 ---
 title: "Installation"
-description: "Install gitview with go install or build it from source."
+description: "Install gitview from a release, with go install, or from source."
 weight: 20
 ---
+
+## Prebuilt binaries
+
+Every [release](https://github.com/tamnd/gitview/releases) carries archives
+for Linux, macOS, Windows, and FreeBSD, plus deb, rpm, and apk packages for
+Linux. Download, unpack, put `gitview` on your `PATH`, done. The
+`checksums.txt` on each release is signed with keyless
+[cosign](https://docs.sigstore.dev/) if you want to verify before running.
+
+## Container
+
+```bash
+docker run -v ~/src:/repos:ro -p 9419:9419 ghcr.io/tamnd/gitview
+```
+
+The image ships with git inside; mount the repositories to browse at
+`/repos` (read-only is enough) and open <http://127.0.0.1:9419>.
 
 ## With Go
 
